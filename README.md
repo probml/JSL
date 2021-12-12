@@ -1,1 +1,1 @@
-# JSL: Jax SSM Library
+# JSL: Jax State-Space models (SSM) Library
