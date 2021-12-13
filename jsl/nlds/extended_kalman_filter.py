@@ -1,8 +1,8 @@
 import jax.numpy as jnp
 from jax import jacrev
 from jax.lax import scan
-
 from .base import NLDS
+from functools import partial
 
 
 class ExtendedKalmanFilter(NLDS):
@@ -23,7 +23,7 @@ class ExtendedKalmanFilter(NLDS):
         """
         return cls(model.fz, model.fx, model.Q, model.R)
 
-    def filter_step(self, state, xs, eps=0.001):
+    def filter_step(self, state, xs, eps=0.001, carry_params=None):
         """
         Run the Extended Kalman filter algorithm for a single step
         Paramters
@@ -32,6 +32,10 @@ class ExtendedKalmanFilter(NLDS):
             Mean, covariance at time t-1
         xs: tuple
             Target value and observations at time t
+        eps: float
+            Small number to prevent singular matrix
+        carry_params: list
+            Fix elements to carry
         """
         mu_t, Vt, t = state
         xt, obs = xs
@@ -51,10 +55,11 @@ class ExtendedKalmanFilter(NLDS):
         Kt = Vt_cond @ Ht.T @ jnp.linalg.inv(Mt)
         mu_t = mu_t_cond + Kt @ (xt - xt_hat)
         Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
-        # Vt = (I - Kt @ Ht) @ Vt_cond
-        return (mu_t, Vt, t + 1), (mu_t, None)
+        
+        elements = {"mean": mu_t, "cov": Vt}
+        return (mu_t, Vt, t + 1), {key: val for key, val in elements.items() if key in carry_params}
 
-    def filter(self, init_state, sample_obs, observations=None, Vinit=None):
+    def filter(self, init_state, sample_obs, observations=None, Vinit=None, carry_params=None):
         """
         Run the Extended Kalman Filter algorithm over a set of observed samples.
         Parameters
@@ -76,6 +81,9 @@ class ExtendedKalmanFilter(NLDS):
         state = (init_state, Vt, t)
         observations = (observations,) if type(observations) is not tuple else observations
         xs = (sample_obs, observations)
-        (mu_t, Vt, _), mu_t_hist = scan(self.filter_step, state, xs)
 
-        return (mu_t, Vt), mu_t_hist
+        carry_params = [] if carry_params is None else carry_params
+        filter = partial(self.filter_step, carry_params=carry_params)
+        (mu_t, Vt, _), hist_elements = scan(filter, state, xs)
+
+        return (mu_t, Vt), hist_elements
