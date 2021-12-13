@@ -23,7 +23,7 @@ class ExtendedKalmanFilter(NLDS):
         """
         return cls(model.fz, model.fx, model.Q, model.R)
 
-    def filter_step(self, state, xs, eps=0.001, carry_params=None):
+    def filter_step(self, state, xs, eps=0.001, return_params=None):
         """
         Run the Extended Kalman filter algorithm for a single step
         Paramters
@@ -34,7 +34,7 @@ class ExtendedKalmanFilter(NLDS):
             Target value and observations at time t
         eps: float
             Small number to prevent singular matrix
-        carry_params: list
+        return_params: list
             Fix elements to carry
         """
         mu_t, Vt, t = state
@@ -57,9 +57,9 @@ class ExtendedKalmanFilter(NLDS):
         Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
         
         elements = {"mean": mu_t, "cov": Vt}
-        return (mu_t, Vt, t + 1), {key: val for key, val in elements.items() if key in carry_params}
+        return (mu_t, Vt, t + 1), {key: val for key, val in elements.items() if key in return_params}
 
-    def filter(self, init_state, sample_obs, observations=None, Vinit=None, carry_params=None):
+    def filter(self, init_state, sample_obs, observations=None, Vinit=None, return_params=None):
         """
         Run the Extended Kalman Filter algorithm over a set of observed samples.
         Parameters
@@ -82,8 +82,8 @@ class ExtendedKalmanFilter(NLDS):
         observations = (observations,) if type(observations) is not tuple else observations
         xs = (sample_obs, observations)
 
-        carry_params = [] if carry_params is None else carry_params
-        filter = partial(self.filter_step, carry_params=carry_params)
+        return_params = [] if return_params is None else return_params
+        filter = partial(self.filter_step, return_params=return_params)
         (mu_t, Vt, _), hist_elements = scan(filter, state, xs)
 
         return (mu_t, Vt), hist_elements
