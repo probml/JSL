@@ -73,7 +73,7 @@ class ExtendedKalmanFilter(NLDS):
         Vt = self.Q(init_state) if Vinit is None else Vinit
 
         t = 0
-        state = (init_state, Vinit, t)
+        state = (init_state, Vt, t)
         observations = (observations,) if type(observations) is not tuple else observations
         xs = (sample_obs, observations)
         (mu_t, Vt, _), mu_t_hist = scan(self.filter_step, state, xs)
