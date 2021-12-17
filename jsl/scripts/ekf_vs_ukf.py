@@ -6,13 +6,9 @@ from . import plot_utils
 import jax.numpy as jnp
 from jax import random
 
-from nlds.base import NLDS
-from nlds.extended_kalman_filter import ExtendedKalmanFilter
-from nlds.unscented_kalman_filter import UnscentedKalmanFilter
-
-plt.rcParams["axes.spines.right"] = False
-plt.rcParams["axes.spines.top"] = False
-
+from jsl.nlds.base import NLDS
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
 
 def check_symmetric(a, rtol=1.1):
     return jnp.allclose(a, a.T, rtol=rtol)
@@ -26,6 +22,7 @@ def plot_data(sample_state, sample_obs):
     ax.legend()
     ax.set_title("Noisy observations from hidden trajectory")
     plt.axis("equal")
+    return fig, ax
 
 
 def plot_inference(sample_obs, mean_hist, Sigma_hist):
@@ -39,6 +36,7 @@ def plot_inference(sample_obs, mean_hist, Sigma_hist):
     for mut, Vt in collection:
         plot_utils.plot_ellipse(Vt, mut, ax, plot_center=False, alpha=0.9, zorder=3)
     plt.axis("equal")
+    return fig, ax
 
 def main():
     def fz(x, dt): return x + dt * jnp.array([jnp.sin(x[1]), jnp.cos(x[0])])
@@ -67,18 +65,16 @@ def main():
     ekf_mean_hist = ekf_hist["mean"]
     ekf_Sigma_hist = ekf_hist["cov"]
 
-    plot_data(sample_state, sample_obs)
-    plt.savefig("nlds2d_data.pdf")
+    # nlds2d_data
+    fig_data, ax = plot_data(sample_state, sample_obs)
 
-    plot_inference(sample_obs, ekf_mean_hist, ekf_Sigma_hist)
-    plt.title("EKF")
-    plt.savefig("nlds2d_ekf.pdf")
+    # nlds2d_ekf
+    fig_ekf, ax = plot_inference(sample_obs, ekf_mean_hist, ekf_Sigma_hist)
+    ax.set_title("EKF")
 
-    plot_inference(sample_obs, ukf_mean_hist, ukf_Sigma_hist)
-    plt.title("UKF")
-    plt.savefig("nlds2d_ukf.pdf")
+    # nlds2d_ukf
+    fig_ukf, ax = plot_inference(sample_obs, ukf_mean_hist, ukf_Sigma_hist)
+    ax.set_title("UKF")
+    # plt.savefig("nlds2d_ukf.pdf")
 
-    plt.show()
-
-if __name__ == "__main__":
-    main()
+    return fig_data, fig_ekf, fig_ukf
