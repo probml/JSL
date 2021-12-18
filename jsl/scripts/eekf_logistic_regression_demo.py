@@ -16,7 +16,7 @@ def sigmoid(x): return jnp.exp(x) / (1 + jnp.exp(x))
 def log_sigmoid(z): return z - jnp.log(1 + jnp.exp(z))
 def fz(x): return x
 def fx(w, x): return sigmoid(w[None, :] @ x)
-def Rt(w, x): return sigmoid(w @ x) * (1 - sigmoid(w @ x))
+def Rt(w, x): return (sigmoid(w @ x) * (1 - sigmoid(w @ x)))[None, None]
 
 
 def main():
