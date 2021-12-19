@@ -2,7 +2,7 @@
 # Author: Gerardo Durán-Martín (@gerdm)
 
 import matplotlib.pyplot as plt
-from . import plot_utils
+import plot_utils
 import jax.numpy as jnp
 from jax import random
 
@@ -78,3 +78,8 @@ def main():
     # plt.savefig("nlds2d_ukf.pdf")
 
     return fig_data, fig_ekf, fig_ukf
+
+
+if __name__ == "__main__":
+    fig_data, fig_ekf, fig_ukf = main()
+    plt.show()

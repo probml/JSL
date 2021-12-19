@@ -125,3 +125,8 @@ def main():
     print(w_laplace, end="\n"*2)
 
     return list_figs
+
+
+if __name__ == "__main__":
+    figs = main()
+    plt.show()
