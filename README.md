@@ -4,8 +4,8 @@
 
 JSL is a JAX library for Bayesian inference in linear and non-linear Gaussian state-space models.
 We assume that the model parameters are known, and just focus on state estimation.
-For linear-Gaussian models, we support Kalman filtering and RTS smoothing.
-For nonlinear-Gaussian models, we support extended Kalman filtering (EKF) with full and diagonal covariance,
+For linear dynamical systems (LDS), we support Kalman filtering and RTS smoothing.
+For nonlinear dynamical systems (NLDS), we support extended Kalman filtering (EKF) with full and diagonal covariance,
 unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
 
 # Examples
