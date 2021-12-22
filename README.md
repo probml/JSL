@@ -6,18 +6,18 @@ The JSL library is a Jax library for the sequential analysis of state-space mode
 
 # Scripts
 
-## Estimating a non-linear dynamical system using EKF and UKF
+**Estimating a non-linear dynamical system using EKF and UKF**  
 Script: `ekf_vs_ukf.py`
 
-## Estimating a continuous-time non-linear dynamical system using EKF
+**Estimating a continuous-time non-linear dynamical system using EKF**  
 Script: `ekf_continuous_demo.py`
 
-## Sequentially estimating the parameters of a linear regresison model using the Kalman filter (KF) algorithm
+**Sequentially estimating the parameters of a linear regresison model using the Kalman filter (KF) algorithm**  
 Script: `linreg_kf_demo.py`
 
-## Sequentially estimating the parameters of a logistic regression model using the exponential-family EKF (EEKF)
+**Sequentially estimating the parameters of a logistic regression model using the exponential-family EKF (EEKF)**  
 Script: `eekf_logistic_regression_demo.py`
 
-## Sequentially learning a multi-layered perceptron using EKF and UKF
+**Sequentially learning a multi-layered perceptron using EKF and UKF**  
 Script: `ekf_vs_ukf_mlp_demo.py`, `ekf_mlp_anim_demo.py`
 
