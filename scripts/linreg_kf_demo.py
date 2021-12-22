@@ -1,6 +1,16 @@
-# Online Bayesian linear regression using Kalman Filter
+# Online Bayesian linear regression in 1d using Kalman Filter
 # Based on: https://github.com/probml/pmtk3/blob/master/demos/linregOnlineDemoKalman.m
-# Author: Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
+# Author: Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (murphyk@).
+
+# The latent state corresponds to the current estimate of the regression weights w.
+# The observation model has the form
+# p(y(t) |  w(t), x(t)) = Gauss( C(t) * w(t), R(t))
+# where C(t) = X(t,:) is the observation matrix for step t.
+# The dynamics model has the form
+# p(w(t) | w(t-1)) = Gauss(A * w(t-1), Q)
+# where Q>0 allows for parameter  drift.
+# We show that the result is equivalent to batch (offline) Bayesian inference.
+
 
 import matplotlib.pyplot as plt
 from numpy.linalg import inv

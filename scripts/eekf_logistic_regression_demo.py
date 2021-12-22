@@ -1,6 +1,13 @@
-# Online learning of a logistic
-# regression model using the Exponential-family
-# Extended Kalman Filter (EEKF) algorithm
+# Online learning of a 2d binary logistic regression model p(y=1|x,w) = sigmoid(w'x),
+# using the Exponential-family Extended Kalman Filter (EEKF) algorithm
+# described in "Online natural gradient as a Kalman filter", Y. Ollivier, 2018.
+# https://projecteuclid.org/euclid.ejs/1537257630.
+
+# The latent state corresponds to the current estimate of the regression weights w.
+# The observation model has the form
+# p(y(t) |  w(t), x(t)) propto Gauss(y(t) | h_t(w(t)), R(t))
+# where h_t(w) = sigmoid(w' * x(t)) = p(t) and  R(t) = p(t) * (1-p(t))
+
 
 # Author: Gerardo Durán-Martín (@gerdm)
 

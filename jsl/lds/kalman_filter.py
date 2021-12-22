@@ -280,10 +280,19 @@ class KalmanFilter:
 
 class KalmanFilterNoiseEstimation:
     """
-    Implementation of the Kalman Filtering and Smoothing
-    procedure of a Linear Dynamical System with known parameters.
-    This class exemplifies the use of Kalman Filtering assuming
-    the model parameters are known.
+    Kalman filtering for a linear Gaussian state space model with scalar observations,
+    where all the parameters are known except for the observation noise variance.
+    The model has the following form:
+       p(state(0)) = Gauss(mu0, Sigma0)
+       p(state(t) | state(t-1)) = Gauss(A * state(t-1), Q)
+      p(obs(t) | state(t)) = Gauss(C * state(t), r)
+    The value of r is jointly inferred together with the latent states to produce the posterior
+    p(state(t) , r | obs(1:t)) = Gauss(mu(t), Sigma(t) * r) * Ga(1/r | nu(t)/2, nu(t)*tau(t)/2)
+    where 1/r is the observation precision. For details on this algorithm, see sec 4.5 of
+    "Bayesian forecasting and dynamic models", West and Harrison, 1997.
+    https://www2.stat.duke.edu/~mw/West&HarrisonBook/
+    https://bayanbox.ir/view/5561099385628144678/Bayesian-forecasting-and-dynamic-models-West-Harison.pdf
+
     Parameters
     ----------
     A: array(state_size, state_size)
@@ -292,8 +301,6 @@ class KalmanFilterNoiseEstimation:
         Observation matrix
     Q: array(state_size, state_size)
         Transition covariance matrix
-    R: array(observation_size, observation_size)
-        Observation covariance
     mu0: array(state_size)
         Mean of initial configuration
     Sigma0: array(state_size, state_size) or 0
