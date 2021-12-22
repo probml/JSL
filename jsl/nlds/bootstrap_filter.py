@@ -1,7 +1,10 @@
+import jax
 import jax.numpy as jnp
 from jax import random
+from jax.scipy import stats
+from .base import NLDS
 
-class BootstrapFiltering(NLDS):
+class BootstrapFilter(NLDS):
     def __init__(self, fz, fx, Q, R):
         """
         Implementation of the Bootrstrap Filter for discrete time systems
