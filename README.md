@@ -1,6 +1,8 @@
 # JSL: JAX State-Space models (SSM) Library
 
-<img width="500" alt="image" src="https://user-images.githubusercontent.com/4108759/146819263-7d476231-22c9-4e03-98c6-a6b300d99c5e.png">
+<p align="center">
+  <img width="500" alt="image" src="https://user-images.githubusercontent.com/4108759/146819263-7d476231-22c9-4e03-98c6-a6b300d99c5e.png">
+</p>
 
 JSL is a JAX library for Bayesian inference in linear and non-linear Gaussian state-space models.
 We assume that the model parameters are known, and just focus on state estimation.
