@@ -8,6 +8,12 @@ For linear dynamical systems (LDS), we support Kalman filtering and RTS smoothin
 For nonlinear dynamical systems (NLDS), we support extended Kalman filtering (EKF) with full and diagonal covariance,
 unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
 
+# Installation
+
+```
+pip install git+git://github.com/probml/jsl
+```
+
 # Examples
 
 **Estimating a non-linear dynamical system using EKF and UKF**  
