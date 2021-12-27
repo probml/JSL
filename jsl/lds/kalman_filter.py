@@ -111,7 +111,7 @@ class KalmanFilter:
             obs_hist = obs_hist[0, ...]
         return state_hist, obs_hist
 
-    def kalman_step(self, state, xt):
+    def kalman_step(self, state, obs):
         mun, Sigman, t = state
         I = jnp.eye(self.state_size)
 
@@ -124,7 +124,7 @@ class KalmanFilter:
         mu_update = self.A @ mun
         x_update = self.C(t) @ mu_update
 
-        mun = mu_update + Kn @ (xt - x_update)
+        mun = mu_update + Kn @ (obs - x_update)
         Sigman = (I - Kn @ self.C(t)) @ Sigman_cond
         t = t + 1
 
@@ -326,9 +326,9 @@ class KalmanFilterNoiseEstimation:
         else:
             return self.__update_fn(state, bel, *args)
 
-    def kalman_step(self, state, xt):
+    def kalman_step(self, state, obs):
         mu, Sigma, v, tau = state
-        x, y = xt
+        x, y = obs
 
         mu_cond = jnp.matmul(self.A, mu, precision=Precision.HIGHEST)
         Sigmat_cond = jnp.matmul(jnp.matmul(self.A, Sigma, precision=Precision.HIGHEST), self.A,
