@@ -21,6 +21,20 @@ class NLDS:
     """
 
     def __init__(self, fz, fx, Q, R):
+        """
+        Base class for the nonlinear dynamical systems' module
+
+        Parameters
+        ----------
+        fz: function
+            Nonlinear state transition function
+        fx: function
+            Nonlinear observation function
+        Q: array(state_size, state_size) or function
+            Nonlinear state transition noise covariance function
+        R: array(obs_size, obs_size) or function
+            Nonlinear observation noise covariance function
+        """
         self.fz = fz
         self.fx = fx
         self.__Q = Q
