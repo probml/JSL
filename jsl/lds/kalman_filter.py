@@ -328,15 +328,15 @@ class KalmanFilterNoiseEstimation:
 
     def kalman_step(self, state, obs):
         mu, Sigma, v, tau = state
-        x, y = obs
+        covariates, response = obs
 
         mu_cond = jnp.matmul(self.A, mu, precision=Precision.HIGHEST)
         Sigmat_cond = jnp.matmul(jnp.matmul(self.A, Sigma, precision=Precision.HIGHEST), self.A,
                                  precision=Precision.HIGHEST) + self.Q
 
-        e_k = y - x.T @ mu_cond
-        s_k = x.T @ Sigmat_cond @ x + 1
-        Kt = (Sigmat_cond @ x) / s_k
+        e_k = response - covariates.T @ mu_cond
+        s_k = covariates.T @ Sigmat_cond @ covariates + 1
+        Kt = (Sigmat_cond @ covariates) / s_k
 
         mu = mu + e_k * Kt
         Sigma = Sigmat_cond - jnp.outer(Kt, Kt) * s_k
