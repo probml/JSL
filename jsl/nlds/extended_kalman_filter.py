@@ -39,22 +39,23 @@ class ExtendedKalmanFilter(NLDS):
             Fix elements to carry
         """
         mu_t, Vt, t = state
-        xt, obs = xs
+        # obs, inputs = xs
+        obs, inputs = xs
 
         state_size, *_ = mu_t.shape
         I = jnp.eye(state_size)
         Gt = self.Dfz(mu_t)
         mu_t_cond = self.fz(mu_t)
         Vt_cond = Gt @ Vt @ Gt.T + self.Q(mu_t, t)
-        Ht = self.Dfx(mu_t_cond, *obs)
+        Ht = self.Dfx(mu_t_cond, *inputs)
 
-        Rt = self.R(mu_t_cond, *obs)
+        Rt = self.R(mu_t_cond, *inputs)
         num_inputs, *_ = Rt.shape
 
-        xt_hat = self.fx(mu_t_cond, *obs)
+        obs_hat = self.fx(mu_t_cond, *inputs)
         Mt = Ht @ Vt_cond @ Ht.T + Rt + eps * jnp.eye(num_inputs)
         Kt = Vt_cond @ Ht.T @ jnp.linalg.inv(Mt)
-        mu_t = mu_t_cond + Kt @ (xt - xt_hat)
+        mu_t = mu_t_cond + Kt @ (obs - obs_hat)
         Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
         
         elements = {"mean": mu_t, "cov": Vt}
