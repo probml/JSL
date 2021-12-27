@@ -28,4 +28,4 @@ The animation script produces <a href="https://github.com/probml/probml-data/blo
 
 # Authors
   
-Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (@murphyk).  
+Gerardo Durán-Martín ([@gerdm](https://github.com/gerdm)), Aleyna Kara([@karalleyna](https://github.com/karalleyna)), Kevin Murphy ([@murphyk](https://github.com/murphyk)).  
