@@ -26,7 +26,7 @@ class KalmanFilter:
     A: array(state_size, state_size)
         Transition matrix
     C: array(observation_size, state_size)
-        Observation matrix
+        Constant observation matrix or function that depends on time
     Q: array(state_size, state_size)
         Transition covariance matrix
     R: array(observation_size, observation_size)
