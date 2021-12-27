@@ -10,6 +10,17 @@ class ExtendedKalmanFilter(NLDS):
     """
     Implementation of the Extended Kalman Filter for a nonlinear
     dynamical system with discrete observations
+
+    Parameters
+    ----------
+    fz: function
+        Nonlinear state transition function
+    fx: function
+        Nonlinear observation function
+    Q: array(state_size, state_size) or function
+        Nonlinear state transition noise covariance function
+    R: array(obs_size, obs_size) or function
+        Nonlinear observation noise covariance function
     """
 
     def __init__(self, fz, fx, Q, R):
@@ -27,7 +38,8 @@ class ExtendedKalmanFilter(NLDS):
     def filter_step(self, state, xs, eps=0.001, return_params=None):
         """
         Run the Extended Kalman filter algorithm for a single step
-        Paramters
+
+        Parameters
         ---------
         state: tuple
             Mean, covariance at time t-1
@@ -37,9 +49,14 @@ class ExtendedKalmanFilter(NLDS):
             Small number to prevent singular matrix
         return_params: list
             Fix elements to carry
+        
+        Returns
+        -------
+        * tuple
+            1. Mean, covariance, and time at time t
+            2. History of filtered mean terms (if requested)
         """
         mu_t, Vt, t = state
-        # obs, inputs = xs
         obs, inputs = xs
 
         state_size, *_ = mu_t.shape
@@ -64,10 +81,19 @@ class ExtendedKalmanFilter(NLDS):
     def filter(self, init_state, sample_obs, observations=None, Vinit=None, return_params=None):
         """
         Run the Extended Kalman Filter algorithm over a set of observed samples.
+
         Parameters
         ----------
         init_state: array(state_size)
         sample_obs: array(nsamples, obs_size)
+        observations: array(nsamples, feature_size) or None
+            optional observations to pass to the observation function
+        Vinit: array(state_size, state_size) or None
+            Initial state covariance matrix
+        return_params: list
+            Parameters to carry from the filter step. Possible values are:
+            "mean", "cov"
+
         Returns
         -------
         * array(nsamples, state_size)
