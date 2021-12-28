@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 from jax import random
 from jax.scipy.optimize import minimize
 from sklearn.datasets import make_biclusters
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
 
 def sigmoid(x): return jnp.exp(x) / (1 + jnp.exp(x))
 def log_sigmoid(z): return z - jnp.log(1 + jnp.exp(z))
@@ -77,7 +77,7 @@ def main():
     SN = jax.hessian(E)(w_laplace)
 
     ### Ploting surface predictive distribution
-    list_figs = []
+    dict_figures = {}
     key = random.PRNGKey(31415)
     nsamples = 5000
 
@@ -90,8 +90,7 @@ def main():
     ax.contourf(*Xspace, Z_eekf, cmap="RdBu_r", alpha=0.7, levels=20)
     ax.scatter(*X.T, c=colors, edgecolors="black", s=80)
     ax.set_title("(EEKF) Predictive distribution")
-    list_figs.append(fig_eekf)
-    # pml.savefig("logistic-regression-surface-eekf.pdf")
+    dict_figures["logistic_regression_surface_eekf"] = fig_eekf
 
     # Laplace surface predictive distribution
     laplace_samples = random.multivariate_normal(key, w_laplace, SN, (nsamples,))
@@ -102,8 +101,7 @@ def main():
     ax.contourf(*Xspace, Z_laplace, cmap="RdBu_r", alpha=0.7, levels=20)
     ax.scatter(*X.T, c=colors, edgecolors="black", s=80)
     ax.set_title("(Laplace) Predictive distribution")
-    list_figs.append(fig_laplace)
-    # pml.savefig("logistic-regression-surface-laplace.pdf")
+    dict_figures["logistic_regression_surface_laplace"] = fig_laplace
 
     ### Plot EEKF and Laplace training history
     P_eekf_hist_diag = jnp.diagonal(P_eekf_hist, axis1=1, axis2=2)
@@ -122,8 +120,7 @@ def main():
         ax.set_xlabel("number samples")
         ax.set_ylabel("weights")
         plt.tight_layout()
-        list_figs.append(fig_weight_k)
-        # pml.savefig(f"eekf-laplace-hist-w{k}.pdf")
+        dict_figures[f"logistic_regression_hist_w{k}"] = fig_weight_k
 
     print("EEKF weights")
     print(w_eekf, end="\n"*2)
@@ -131,7 +128,7 @@ def main():
     print("Laplace weights")
     print(w_laplace, end="\n"*2)
 
-    return list_figs
+    return dict_figures
 
 
 if __name__ == "__main__":

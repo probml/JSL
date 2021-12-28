@@ -6,13 +6,13 @@
 #   * Nonlinear Dynamics and Chaos - Steven Strogatz
 # Author: Gerardo Durán-Martín (@gerdm)
 
-import plot_utils
+from . import plot_utils
 import numpy as np
 import matplotlib.pyplot as plt 
 import jax.numpy as jnp
 from math import ceil
 from jax import random
-from jsl.nlds.continuous_extended_kalman_filter import ContinuousExtendedKalmanFilter
+from ..nlds.continuous_extended_kalman_filter import ContinuousExtendedKalmanFilter
 
 def fz(x):
     x, y = x

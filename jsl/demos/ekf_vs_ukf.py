@@ -2,13 +2,13 @@
 # Author: Gerardo Durán-Martín (@gerdm)
 
 import matplotlib.pyplot as plt
-import plot_utils
+from . import plot_utils
 import jax.numpy as jnp
 from jax import random
 
-from jsl.nlds.base import NLDS
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
+from ..nlds.base import NLDS
+from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
+from ..nlds.unscented_kalman_filter import UnscentedKalmanFilter
 
 def check_symmetric(a, rtol=1.1):
     return jnp.allclose(a, a.T, rtol=rtol)
@@ -65,21 +65,24 @@ def main():
     ekf_mean_hist = ekf_hist["mean"]
     ekf_Sigma_hist = ekf_hist["cov"]
 
+    dict_figures = {}
     # nlds2d_data
     fig_data, ax = plot_data(sample_state, sample_obs)
+    dict_figures["nlds2d_data"] = fig_data
 
     # nlds2d_ekf
     fig_ekf, ax = plot_inference(sample_obs, ekf_mean_hist, ekf_Sigma_hist)
     ax.set_title("EKF")
+    dict_figures["nlds2d_ekf"] = fig_ekf
 
     # nlds2d_ukf
     fig_ukf, ax = plot_inference(sample_obs, ukf_mean_hist, ukf_Sigma_hist)
     ax.set_title("UKF")
-    # plt.savefig("nlds2d_ukf.pdf")
+    dict_figures["nlds2d_ukf"] = fig_ukf
 
-    return fig_data, fig_ekf, fig_ukf
+    return dict_figures
 
 
 if __name__ == "__main__":
-    fig_data, fig_ekf, fig_ukf = main()
+    dict_figures = main()
     plt.show()

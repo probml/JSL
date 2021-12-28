@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 from numpy.linalg import inv
 from jax.lax import scan
 import jax.numpy as jnp
-from jsl.lds.kalman_filter import KalmanFilter
+from ..lds.kalman_filter import KalmanFilter
 
 
 def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
@@ -82,11 +82,7 @@ def posterior_lreg(X, y, R, mu0, Sigma0):
 
     return mn_bayes, Sn_bayes
 
-
-if __name__ == "__main__":
-    plt.rcParams["axes.spines.right"] = False
-    plt.rcParams["axes.spines.top"] = False
-
+def main():
     n_obs = 21
     timesteps = jnp.arange(n_obs)
     x = jnp.linspace(0, 20, n_obs)
@@ -110,6 +106,8 @@ if __name__ == "__main__":
     (w0_post, w1_post), Sigma_post = posterior_lreg(X, y, R, mu0, Sigma0)
     w0_std, w1_std = jnp.sqrt(Sigma_post[[0, 1], [0, 1]])
 
+    dict_figures = {}
+
     fig, ax = plt.subplots()
     ax.errorbar(timesteps, w0_hist, w0_err, fmt="-o", label="$w_0$", color="black", fillstyle="none")
     ax.errorbar(timesteps, w1_hist, w1_err, fmt="-o", label="$w_1$", color="tab:red")
@@ -125,5 +123,12 @@ if __name__ == "__main__":
     ax.set_ylabel("weights")
     ax.set_ylim(-8, 4)
     ax.set_xlim(-0.5, n_obs)
-    plt.savefig("linreg-online-kalman.pdf")
+    dict_figures["linreg_online_kalman"] = fig
+
+    return dict_figures
+
+if __name__ == "__main__":
+    plt.rcParams["axes.spines.right"] = False
+    plt.rcParams["axes.spines.top"] = False
+    dict_figures = main()
     plt.show()

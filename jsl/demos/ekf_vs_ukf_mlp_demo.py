@@ -18,8 +18,8 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from functools import partial
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
+from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
+from ..nlds.unscented_kalman_filter import UnscentedKalmanFilter
 from jax.random import PRNGKey, permutation, split, normal, multivariate_normal
 
 

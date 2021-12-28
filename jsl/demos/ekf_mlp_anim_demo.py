@@ -5,26 +5,14 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import ekf_vs_ukf_mlp_demo as demo
+from . import ekf_vs_ukf_mlp_demo as demo
 import matplotlib.animation as animation
 from functools import partial
 from jax.random import PRNGKey, split, normal, multivariate_normal
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-
-if __name__ == "__main__":
-    import sys
-    import os
-    plt.rcParams["axes.spines.right"] = False
-    plt.rcParams["axes.spines.top"] = False
-
-    _, *path = sys.argv
-    path = "." if len(path) == 0 else path[0]
-    filepath = os.path.join(path, "samples_hist_ekf.mp4")
+from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
 
 
-    def f(x): return x -10 * jnp.cos(x) * jnp.sin(x) + x ** 3
-    def fz(W): return W
-
+def main(fx, fz, filepath):
     # *** MLP configuration ***
     n_hidden = 6
     n_in, n_out = 1, 1
@@ -43,7 +31,7 @@ if __name__ == "__main__":
     key_sample_obs, key_weights = split(key, 2)
     xmin, xmax = -3, 3
     sigma_y = 3.0
-    x, y = demo.sample_observations(key_sample_obs, f, n_obs, xmin, xmax, x_noise=0, y_noise=sigma_y)
+    x, y = demo.sample_observations(key_sample_obs, fx, n_obs, xmin, xmax, x_noise=0, y_noise=sigma_y)
     xtest = jnp.linspace(x.min(), x.max(), n_obs)
 
     # *** MLP Training with EKF ***
@@ -78,3 +66,19 @@ if __name__ == "__main__":
         
     ani = animation.FuncAnimation(fig, func, frames=n_obs)
     ani.save(filepath, dpi=200, bitrate=-1, fps=10)
+
+if __name__ == "__main__":
+    import sys
+    import os
+    plt.rcParams["axes.spines.right"] = False
+    plt.rcParams["axes.spines.top"] = False
+
+    _, *path = sys.argv
+    path = "." if len(path) == 0 else path[0]
+    filepath = os.path.join(path, "samples_hist_ekf.mp4")
+
+    def f(x): return x -10 * jnp.cos(x) * jnp.sin(x) + x ** 3
+    def fz(W): return W
+
+    main(f, fz, filepath)
+    print(f"Saved animation to {filepath}")
