@@ -35,7 +35,7 @@ class ExtendedKalmanFilter(NLDS):
         """
         return cls(model.fz, model.fx, model.Q, model.R)
 
-    def filter_step(self, state, xs, eps=0.001, return_params=None):
+    def filter_step(self, state, xs, eps=0.001, return_params=[]):
         """
         Run the Extended Kalman filter algorithm for a single step
 
