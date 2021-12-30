@@ -1,6 +1,5 @@
 import os
 import fire
-from jsl.scripts import ekf_vs_ukf as ekf_vs_ukf_exp
 
 class Experiments:
     def ekf_vs_ukf(self, savefig_path=None):
