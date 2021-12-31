@@ -18,6 +18,43 @@ pip install git+git://github.com/probml/jsl
 
 # Examples
 
+To run the examples included in JSL from the command line, clone the repository and `cd` into `JSL`. Then run
+
+```
+python -m jsl run_demo [NAME_OF_DEMO]
+```
+
+To see the available demos, run
+
+```
+python -m jsl list_demos
+```
+
+Alternatively, you can run any demo directly from JSL after instalation by importing the desired demo and running its `main()` function as follows:
+
+```python
+>>> from jsl.demos import NAME_OF_DEMO
+>> figures = NAME_OF_DEMO.main()
+```
+
+The resulting variable `figures` is a dictionary with values the output figures and keys the recommended figure names.
+
+
+## Current available demos
+
+**Basic examples of a Kalman Filter. Based on the idea of tracking missiles**  
+Script: `kf_tracking_demo` Single example  
+Script: `kf_parallel_demo` In parallel
+
+**continous-time Kalman filtering of a linear dynamical system with imaginary eigenvalues**  
+Script: `kf_continuous_circle_demo`
+
+**Kalman filtering of a linear dynamical system with imaginary eigenvalues**  
+Script: `kf_continuous_circle_demo`
+
+**Filtering a non-linear system with Gaussian noise using the bootstrap filter**  
+Script: `bootstrap_filter_demo`
+
 **Estimating a non-linear dynamical system using EKF and UKF**  
 Script: `ekf_vs_ukf.py`
 
@@ -33,6 +70,9 @@ Script: `eekf_logistic_regression_demo.py`
 **Sequentially learning a multi-layered perceptron on 1d nonlinear regression problem using EKF and UKF**  
 Script: `ekf_vs_ukf_mlp_demo.py`, `ekf_mlp_anim_demo.py`.
 The animation script produces <a href="https://github.com/probml/probml-data/blob/main/data/ekf_mlp_demo.mp4">this video</a>.
+
+**Comparing EKF v.s. bootstrap filtering when there is non-gaussian noise added to the system**  
+Script `pendulum_1d_demo`
 
 # Authors
   
