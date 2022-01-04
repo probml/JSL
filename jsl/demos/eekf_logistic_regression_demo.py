@@ -54,14 +54,14 @@ def inference_loop(rng_key, kernel, initial_state, num_samples):
 def E_base(w, Phi, y, alpha):
     """
     Base function containing the Energy of a logistic
-    regression with 
+    regression with. Energy log-joint
     """
     an = Phi @ w
     log_an = log_sigmoid(an)
     log_likelihood_term = y * log_an + (1 - y) * jnp.log(1 - sigmoid(an))
-    prior_term = alpha * w @ w / 2
+    log_prior_term = alpha * w @ w / 2
 
-    return -prior_term + log_likelihood_term.sum()
+    return -log_prior_term + log_likelihood_term.sum()
 
 
 def mcmc_logistic_posterior_sample(key, Phi, y, alpha=1.0, init_noise=1.0,
