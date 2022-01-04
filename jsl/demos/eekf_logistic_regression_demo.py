@@ -149,7 +149,7 @@ def main():
     Z_eekf = Z_eekf.mean(axis=0)
 
     fig_eekf, ax = plt.subplots()
-    title = "EEKF Surface Predictive Distribution"
+    title = "EEKF  Predictive Distribution"
     plot_posterior_predictive(ax, X, Xspace, Z_eekf, title, colors)
     dict_figures["logistic_regression_surface_eekf"] = fig_eekf
 
@@ -159,13 +159,13 @@ def main():
     Z_laplace = Z_laplace.mean(axis=0)
 
     fig_laplace, ax = plt.subplots()
-    title = "(Laplace) Predictive distribution"
+    title = "Laplace Predictive distribution"
     plot_posterior_predictive(ax, X, Xspace, Z_laplace, title, colors)
     dict_figures["logistic_regression_surface_laplace"] = fig_laplace
 
     # MCMC surface predictive distribution
     fig_mcmc, ax = plt.subplots()
-    title = "(MCMC) Predictive distribution"
+    title = "MCMC Predictive distribution"
     plot_posterior_predictive(ax, X, Xspace, Z_mcmc, title, colors)
     dict_figures["logistic_regression_surface_mcmc"] = fig_mcmc
 
@@ -186,7 +186,7 @@ def main():
         ax.set_xlabel("number samples")
         ax.set_ylabel("weights")
         plt.tight_layout()
-        dict_figures[f"logistic_regression_hist_w{k}"] = fig_weight_k
+        dict_figures[f"logistic_regression_hist_ekf_w{k}"] = fig_weight_k
     
 
     # *** Plotting posterior marginals of weights ***
@@ -202,7 +202,8 @@ def main():
         ax.plot(x, norm.pdf(x, mean_mcmc, std_mcmc), label="posterior (MCMC)", linestyle="dashed")
         ax.legend()
         ax.set_title(f"Posterior marginals of weights ({i})")
-        dict_figures[f"weights_marginals_w{i}"] = fig_weights_marginals
+        #dict_figures[f"weights_marginals_w{i}"] = fig_weights_marginals
+        dict_figures[f"logistic_regression_weights_marginals_w{i}"] = fig_weights_marginals
 
 
     print("MCMC weights")
