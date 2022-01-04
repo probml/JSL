@@ -24,6 +24,8 @@ from functools import partial
 from jax.scipy.optimize import minimize
 from sklearn.datasets import make_biclusters
 from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jax.scipy.stats import norm
+
 
 def sigmoid(x): return jnp.exp(x) / (1 + jnp.exp(x))
 def log_sigmoid(z): return z - jnp.log1p(jnp.exp(z))
@@ -171,10 +173,10 @@ def main():
     P_eekf_hist_diag = jnp.diagonal(P_eekf_hist, axis1=1, axis2=2)
     P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
     lcolors = ["black", "tab:blue", "tab:red"]
-    elements = w_eekf_hist.T, P_eekf_hist_diag.T, w_laplace, P_laplace_diag, lcolors
+    elements = w_eekf_hist.T, P_eekf_hist_diag.T, w_laplace, lcolors
     timesteps = jnp.arange(n_datapoints) + 1
 
-    for k, (wk, Pk, wk_laplace, Pk_laplace, c) in enumerate(zip(*elements)):
+    for k, (wk, Pk, wk_laplace, c) in enumerate(zip(*elements)):
         fig_weight_k, ax = plt.subplots()
         ax.errorbar(timesteps, wk, jnp.sqrt(Pk), c=c, label=f"$w_{k}$ online (EEKF)")
         ax.axhline(y=wk_laplace, c=c, linestyle="dotted", label=f"$w_{k}$ batch (Laplace)", linewidth=3)
@@ -188,8 +190,6 @@ def main():
     
 
     # *** Plotting posterior marginals of weights ***
-    from jax.scipy.stats import norm
-
     for i in range(M):
         fig_weights_marginals, ax = plt.subplots()
         mean_eekf, std_eekf = w_eekf[i], jnp.sqrt(P_eekf[i, i])
@@ -214,6 +214,15 @@ def main():
 
     print("Laplace weights")
     print(w_laplace, end="\n"*2)
+
+    dict_figures["data"] = {
+        "X": X,
+        "y": y,
+        "Xspace": Xspace,
+        "Phi": Phi,
+        "Phispace": Phispace,
+        "w_laplace": w_laplace,
+    }
 
     return dict_figures
 
