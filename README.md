@@ -15,6 +15,13 @@ unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
 ```
 pip install git+git://github.com/probml/jsl
 ```
+Alternatively, you can clone the repo locally, into say `~/github/JSL`, and then install it as a package, as follows:
+```
+cd ~/github
+git clone https://github.com/probml/JSL.git
+cd JSL
+pip install -e .
+```
 
 # Examples
 
