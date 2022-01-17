@@ -118,8 +118,11 @@ class NonMarkovianSequenceModel:
         # 2.2 Compute log-unnormalised weights
         
         log_weights = log_weights_prev + norm.logpdf(yobs, loc=mu, scale=jnp.sqrt(self.q))
+        dict_carry = {
+            "log_weights": log_weights,
+        }
         
-        return (log_weights, mu, xparticles), log_weights
+        return (log_weights, mu, xparticles), dict_carry
     
     def sequential_importance_sample(self, key, observations, n_particles=10):
         """
@@ -145,11 +148,10 @@ class NonMarkovianSequenceModel:
         
         carry_init = (init_log_weights, init_mu, init_xparticles)
         xs_tuple = (keys, observations)
-        
-        _, log_weights = jax.lax.scan(lambda carry, xs: self._sis_step(xs[0], *carry, xs[1]), carry_init, xs_tuple)
-        weights = jnp.exp(log_weights - jax.nn.logsumexp(log_weights, axis=1, keepdims=True))
+        _, dict_hist = jax.lax.scan(lambda carry, xs: self._sis_step(xs[0], *carry, xs[1]), carry_init, xs_tuple)
+        dict_hist["weights"] = jnp.exp(dict_hist["log_weights"] - jax.nn.logsumexp(dict_hist["log_weights"], axis=1, keepdims=True))
 
-        return weights
+        return dict_hist
     
     def _smc_step(self, key, log_weights_prev, mu_prev, xparticles_prev, yobs):
         n_particles = len(xparticles_prev)
