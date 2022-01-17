@@ -123,7 +123,7 @@ class NonMarkovianSequenceModel:
     
     def sequential_importance_sample(self, key, observations, n_particles=10):
         """
-        Apply sequential importance sampling to a series of observations. Sampling
+        Apply sequential importance sampling (SIS) to a series of observations. Sampling
         considers the transition distribution as the proposal.
         
         Parameters
@@ -147,7 +147,9 @@ class NonMarkovianSequenceModel:
         xs_tuple = (keys, observations)
         
         _, log_weights = jax.lax.scan(lambda carry, xs: self._sis_step(xs[0], *carry, xs[1]), carry_init, xs_tuple)
-        return log_weights
+        weights = jnp.exp(log_weights - jax.nn.logsumexp(log_weights, axis=1, keepdims=True))
+
+        return weights
     
     def _smc_step(self, key, log_weights_prev, mu_prev, xparticles_prev, yobs):
         n_particles = len(xparticles_prev)
@@ -172,7 +174,6 @@ class NonMarkovianSequenceModel:
         }
         return (log_weights, mu, xparticles_prev_sampled), dict_carry
 
-    
     def sequential_monte_carlo(self, key, observations, n_particles=10):
         """
         Apply sequential Monte Carlo (SCM), a.k.a sequential importance resampling (SIR),
