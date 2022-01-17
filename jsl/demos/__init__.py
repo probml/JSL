@@ -1,5 +1,5 @@
 __all__ = [
-    "sequential_monte_carlo_demo",
+    "sis_vs_smc_demo",
     "ekf_vs_ukf_mlp_demo",
     "eekf_logistic_regression_demo",
     "ekf_mlp_anim_demo",
