@@ -1,3 +1,4 @@
+import os
 import numpy as np
 from matplotlib.patches import Ellipse, transforms
 # https://matplotlib.org/devdocs/gallery/statistics/confidence_ellipse.html
@@ -26,3 +27,13 @@ def plot_ellipse(Sigma, mu, ax, n_std=3.0, facecolor='none', edgecolor='k', plot
     if plot_center:
         ax.plot(mean_x, mean_y, '.')
     return ax.add_patch(ellipse)
+
+
+def savefig(figures):
+    if "FIGDIR" in os.environ:
+        figdir = os.environ["FIGDIR"]
+        for name, figure in figures.items():
+            fname_full = os.path.join(figdir, name)
+            print(f"saving image to {fname_full}")
+            figure.savefig(f"{fname_full}.pdf")
+            figure.savefig(f"{fname_full}.png")
