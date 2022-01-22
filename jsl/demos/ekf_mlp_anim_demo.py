@@ -5,11 +5,11 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from . import ekf_vs_ukf_mlp_demo as demo
+from jsl.demos import ekf_vs_ukf_mlp_demo as demo
 import matplotlib.animation as animation
 from functools import partial
 from jax.random import PRNGKey, split, normal, multivariate_normal
-from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 
 
 def main(fx, fz, filepath):
@@ -68,13 +68,12 @@ def main(fx, fz, filepath):
     ani.save(filepath, dpi=200, bitrate=-1, fps=10)
 
 if __name__ == "__main__":
-    import sys
     import os
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
 
-    _, *path = sys.argv
-    path = "." if len(path) == 0 else path[0]
+    path = os.environ.get("FIGDIR")
+    path = "." if path is None else path
     filepath = os.path.join(path, "samples_hist_ekf.mp4")
 
     def f(x): return x -10 * jnp.cos(x) * jnp.sin(x) + x ** 3
