@@ -1,11 +1,10 @@
 # Parallel Kalman Filter demo: this script simulates
 # 4 missiles as described in the section "state-space models".
 # Each of the missiles is then filtered and smoothed in parallel
-# Author: Gerardo Durán-Martín (@gerdm)
 
 import jax.numpy as jnp
-from ..lds.kalman_filter import KalmanFilter
-from .plot_utils import plot_ellipse
+from jsl.lds.kalman_filter import KalmanFilter
+from jsl.demos.plot_utils import plot_ellipse
 import matplotlib.pyplot as plt
 from jax import random
 
@@ -123,5 +122,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     figures = main()
+    savefig(figures)
     plt.show()
