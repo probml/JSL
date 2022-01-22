@@ -4,15 +4,13 @@
 #   * Section on EKFs in PML vol2 book
 #   * https://github.com/rlabbe/Kalman-and-Bayesian-Filters-in-Python/blob/master/11-Extended-Kalman-Filters.ipynb
 #   * Nonlinear Dynamics and Chaos - Steven Strogatz
-# Author: Gerardo Durán-Martín (@gerdm)
 
-from . import plot_utils
+from jsl.demos import plot_utils
 import numpy as np
 import matplotlib.pyplot as plt 
 import jax.numpy as jnp
-from math import ceil
 from jax import random
-from ..nlds.continuous_extended_kalman_filter import ContinuousExtendedKalmanFilter
+from jsl.nlds.continuous_extended_kalman_filter import ContinuousExtendedKalmanFilter
 
 def fz(x):
     x, y = x
@@ -69,7 +67,9 @@ def main():
     return dict_figures
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     dict_figures = main()
+    savefig(dict_figures)
     plt.show()
