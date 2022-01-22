@@ -6,12 +6,12 @@
 #   * Nonlinear Dynamics and Chaos - Steven Strogatz
 # Author: Gerardo Durán-Martín (@gerdm)
 
-import matplotlib.pyplot as plt 
-import jax.numpy as jnp
 import numpy as np
+import jax.numpy as jnp
+import matplotlib.pyplot as plt 
 from jax import random
-from .plot_utils import plot_ellipse
-from ..lds.cont_kalman_filter import ContinuousKalmanFilter
+from jsl.demos.plot_utils import plot_ellipse
+from jsl.lds.cont_kalman_filter import ContinuousKalmanFilter
 
 def main():
     A = jnp.array([[0, 1], [-1, 0]])
@@ -65,3 +65,9 @@ def main():
     dict_figures["kf-circle-filtered"] = fig_filtered
 
     return dict_figures
+
+if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
+    dict_figures = main()
+    savefig(dict_figures)
+    plt.show()
