@@ -3,7 +3,7 @@
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
-from jsl.demos.plot_utils import plot_ellipse, savefig
+from jsl.demos.plot_utils import plot_ellipse
 from jsl.lds.kalman_filter import KalmanFilter
 
 def plot_tracking_values(observed, filtered, cov_hist, signal_label, ax):
@@ -128,7 +128,9 @@ def main():
 
     return dict_figures
 
+
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     figures = main()
     savefig(figures)
     plt.show()
