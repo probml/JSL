@@ -6,7 +6,7 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
-from ..nlds.sequential_monte_carlo import NonMarkovianSequenceModel
+from jsl.nlds.sequential_monte_carlo import NonMarkovianSequenceModel
 
 def find_path(ix_path, final_state):
     curr_state = final_state
@@ -207,3 +207,10 @@ def main():
     dict_figures["smc_weights_unique"] = fig
 
     return dict_figures
+
+
+if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
+    figures = main()
+    savefig(figures)
+    plt.show()
