@@ -1,12 +1,9 @@
 # Demo of the bootstrap filter under a
 # nonlinear discrete system
 
-# Author: Gerardo Durán-Martín (@gerdm)
-
-
 import jax
-from ..nlds.base import NLDS
-from ..nlds.bootstrap_filter import BootstrapFilter
+from jsl.nlds.base import NLDS
+from jsl.nlds.bootstrap_filter import BootstrapFilter
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
@@ -66,7 +63,9 @@ def main():
     return dict_figures
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     dict_figures = main()
+    savefig(dict_figures)
     plt.show()
