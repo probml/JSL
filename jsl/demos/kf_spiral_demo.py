@@ -1,13 +1,12 @@
 # This demo exemplifies the use of the Kalman Filter
 # algorithm when the linear dynamical system induced by the
 # matrix A has imaginary eigenvalues
-# Author: Gerardo Durán-Martín (@gerdm)
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from .plot_utils import plot_ellipse
+from jsl.demos.plot_utils import plot_ellipse
 from jax import random
-from ..lds.kalman_filter import KalmanFilter
+from jsl.lds.kalman_filter import KalmanFilter
 
 def plot_uncertainty_ellipses(means, covs, ax):
     timesteps = len(means)
@@ -66,3 +65,10 @@ def main():
     dict_figures["spiral-smoothed"] = fig_spiral_smoothed
 
     return dict_figures
+
+
+if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
+    figures = main()
+    savefig(figures)
+    plt.show()
