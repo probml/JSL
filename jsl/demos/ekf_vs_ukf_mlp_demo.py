@@ -11,15 +11,13 @@
 #     application to XOR classification problem
 #       https://ieeexplore.ieee.org/document/6234549
 
-# Author: Gerardo Durán-Martín (@gerdm)
-
 import jax
 import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from functools import partial
-from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
-from ..nlds.unscented_kalman_filter import UnscentedKalmanFilter
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
 from jax.random import PRNGKey, permutation, split, normal, multivariate_normal
 
 
@@ -183,7 +181,9 @@ def main():
 
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     figures = main()
+    savefig(figures)
     plt.show()
