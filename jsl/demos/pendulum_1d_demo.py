@@ -3,17 +3,15 @@
 # Additionally, we test the particle filter when the observations have a 40%
 # probability of being perturbed by a uniform(-2, 2) distribution
 
-# Author: Gerardo Durán-Martín (@gerdm)
-
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
 from jax.ops import index_update
-from ..nlds.base import NLDS
-from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
-from ..nlds.unscented_kalman_filter import UnscentedKalmanFilter
-from ..nlds.bootstrap_filter import BootstrapFilter
+from jsl.nlds.base import NLDS
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
+from jsl.nlds.bootstrap_filter import BootstrapFilter
 
 def plot_filter_true(ax, time, estimate, obs, ground_truth, label, colors="tab:blue"):
     ax.plot(time, estimate, c="black", label=label)
@@ -131,7 +129,9 @@ def main():
 
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     figures = main()
+    savefig(figures)
     plt.show()
