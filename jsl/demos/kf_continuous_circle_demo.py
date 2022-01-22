@@ -4,7 +4,6 @@
 # For futher reference and examples see:
 #   * Section on Kalman Filters in PML vol2 book
 #   * Nonlinear Dynamics and Chaos - Steven Strogatz
-# Author: Gerardo Durán-Martín (@gerdm)
 
 import numpy as np
 import jax.numpy as jnp
