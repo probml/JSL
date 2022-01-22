@@ -1,6 +1,5 @@
 # Example showcasing the learning process of the EKF algorithm.
 # This demo is based on the ekf_mlp_anim_demo.py demo.
-# Author: Gerardo Durán-Martín (@gerdm)
 
 import jax
 import jax.numpy as jnp
