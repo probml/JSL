@@ -77,10 +77,10 @@ def sample_filter_smooth(lds_model, key):
 def main():
     key = random.PRNGKey(314)
     timesteps = 15
-    Δ = 1.0
+    delta = 1.0
     A = jnp.array([
-        [1, 0, Δ, 0],
-        [0, 1, 0, Δ],
+        [1, 0, delta, 0],
+        [0, 1, 0, delta],
         [0, 0, 1, 0],
         [0, 0, 0, 1]
     ])
