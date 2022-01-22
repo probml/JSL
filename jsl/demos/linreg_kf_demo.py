@@ -1,6 +1,5 @@
 # Online Bayesian linear regression in 1d using Kalman Filter
 # Based on: https://github.com/probml/pmtk3/blob/master/demos/linregOnlineDemoKalman.m
-# Author: Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (murphyk@).
 
 # The latent state corresponds to the current estimate of the regression weights w.
 # The observation model has the form
@@ -11,12 +10,11 @@
 # where Q>0 allows for parameter  drift.
 # We show that the result is equivalent to batch (offline) Bayesian inference.
 
-
 import matplotlib.pyplot as plt
 from numpy.linalg import inv
 from jax.lax import scan
 import jax.numpy as jnp
-from ..lds.kalman_filter import KalmanFilter
+from jsl.lds.kalman_filter import KalmanFilter
 
 
 def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
@@ -127,8 +125,11 @@ def main():
 
     return dict_figures
 
+
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     dict_figures = main()
+    savefig(dict_figures)
     plt.show()
