@@ -14,6 +14,7 @@
 
 # Author: Gerardo Durán-Martín (@gerdm)
 
+
 from itertools import chain
 import jax
 import jax.numpy as jnp
