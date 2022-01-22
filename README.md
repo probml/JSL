@@ -20,48 +20,49 @@ since the details on how to do this depend on whether you have a CPU, GPU, etc.
 Now install these packages:
 
 ```
-pip install --upgrade git+https://github.com/google/flax.git
-pip install blackjax
-pip install superimport 
-pip install fire
+!pip install --upgrade git+https://github.com/google/flax.git
+!pip install --upgrade tensorflow-probability
+!pip install git+git://github.com/blackjax-devs/blackjax.git
+!pip install git+git://github.com/deepmind/distrax.git
+!pip install superimport 
+!pip install fire
 ```
 
 Then install JSL:
 ```
-pip install git+git://github.com/probml/jsl
+!pip install git+git://github.com/probml/jsl
 ```
 Alternatively, you can clone the repo locally, into say `~/github/JSL`, and then install it as a package, as follows:
 ```
-git clone https://github.com/probml/JSL.git
+!git clone https://github.com/probml/JSL.git
 cd JSL
-pip install -e .
+!pip install -e .
 ```
 
-# Examples
+# Running locally
 
-To run the examples included in JSL from the command line, clone the repository and `cd` into `JSL`. Then run
-
-```
-python -m jsl run_demo [NAME_OF_DEMO]
-```
 
 To see the available demos, run
 
 ```
 python -m jsl list_demos
 ```
+To run one, use this
+```
+python -m jsl run_demo [NAME_OF_DEMO]
+```
 
 Alternatively, you can run any demo directly from JSL after instalation by importing the desired demo and running its `main()` function as follows:
 
 ```python
->>> from jsl.demos import NAME_OF_DEMO
->> figures = NAME_OF_DEMO.main()
+from jsl.demos import kf_tracking_demo as demo # replace name as necessary
+figures = demo.main()
 ```
 
-The resulting variable `figures` is a dictionary with values the output figures and keys the recommended figure names.
+The resulting variable `figures` is a dictionary with  keys being file names, and values being the output figures.
+This lets you save the results to a file if you wish.
 
-
-## Current available demos
+# Current available demos
 
 **Basic examples of a Kalman Filter. Based on the idea of tracking missiles**  
 Script: `kf_tracking_demo` Single example  
