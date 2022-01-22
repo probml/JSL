@@ -7,15 +7,15 @@
 # Original matlab code: https://github.com/probml/pmtk3/blob/master/demos/casinoDemo.m
 # Author: Gerardo Duran-Martin (@gerdm)
 
-import superimport
+#import superimport
 
-from hmm_discrete_lib import HMMNumpy
-from hmm_discrete_lib import hmm_sample_numpy, hmm_forwards_backwards_numpy, hmm_viterbi_numpy
+from ..hmm_discrete_lib import HMMNumpy
+from ..hmm_discrete_lib import hmm_sample_numpy, hmm_forwards_backwards_numpy, hmm_viterbi_numpy
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pyprobml_utils as pml
-from hmm_discrete_lib import hmm_plot_graphviz
+#import pyprobml_utils as pml
+from ..hmm_discrete_lib import hmm_plot_graphviz
 
 def find_dishonest_intervals(z_hist):
     """
@@ -109,19 +109,19 @@ fig, ax = plt.subplots()
 plot_inference(alpha, z_hist, ax)
 ax.set_ylabel("p(loaded)")
 ax.set_title("Filtered")
-pml.savefig("hmm_casino_filter.pdf")
+fig.savefig("hmm_casino_filter.pdf")
 
 fig, ax = plt.subplots()
 plot_inference(gamma, z_hist, ax)
 ax.set_ylabel("p(loaded)")
 ax.set_title("Smoothed")
-pml.savefig("hmm_casino_smooth.pdf")
+fig.savefig("hmm_casino_smooth.pdf")
 
 fig, ax = plt.subplots()
 plot_inference(z_map, z_hist, ax, map_estimate=True)
 ax.set_ylabel("MAP state")
 ax.set_title("Viterbi")
-pml.savefig("hmm_casino_map.pdf")
+fig.savefig("hmm_casino_map.pdf")
 plt.show()
 
 file_name = 'hmm_casino_params'
