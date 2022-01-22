@@ -1,14 +1,13 @@
 # Compare extended Kalman filter with unscented kalman filter on a nonlinear 2d tracking problem
-# Author: Gerardo Durán-Martín (@gerdm)
 
-import matplotlib.pyplot as plt
-from . import plot_utils
-import jax.numpy as jnp
 from jax import random
+import matplotlib.pyplot as plt
+import jax.numpy as jnp
 
-from ..nlds.base import NLDS
-from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
-from ..nlds.unscented_kalman_filter import UnscentedKalmanFilter
+from jsl.demos import plot_utils
+from jsl.nlds.base import NLDS
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
 
 def check_symmetric(a, rtol=1.1):
     return jnp.allclose(a, a.T, rtol=rtol)
@@ -84,5 +83,7 @@ def main():
 
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     dict_figures = main()
+    savefig(dict_figures)
     plt.show()
