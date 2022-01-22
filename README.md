@@ -12,12 +12,24 @@ unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
 
 # Installation
 
+We assume you have already installed [JAX](https://github.com/google/jax#installation) and
+[Tensorflow](https://www.tensorflow.org/install) and [Torch](https://pytorch.org/),
+since the details on how to do this depend on whether you have a CPU, GPU, etc.
+(This step is not necessary in Colab.)
+
+Rather than install other packages manually, we jist require that you install
+the [superimport](https://colab.research.google.com/github/probml/probml-notebooks/blob/main/notebooks/Superimport.ipynb)
+library. This will automatically install packages for any file which contains the line `import superimport'.
+```
+pip install superimport 
+```
+
+Then install JSL:
 ```
 pip install git+git://github.com/probml/jsl
 ```
 Alternatively, you can clone the repo locally, into say `~/github/JSL`, and then install it as a package, as follows:
 ```
-cd ~/github
 git clone https://github.com/probml/JSL.git
 cd JSL
 pip install -e .
