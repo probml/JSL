@@ -12,10 +12,6 @@
 #     * !pip install git+https://github.com/blackjax-devs/blackjax.git
 
 
-# Author: Gerardo Durán-Martín (@gerdm)
-
-
-from itertools import chain
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
@@ -24,7 +20,7 @@ from jax import random
 from functools import partial
 from jax.scipy.optimize import minimize
 from sklearn.datasets import make_biclusters
-from ..nlds.extended_kalman_filter import ExtendedKalmanFilter
+from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from jax.scipy.stats import norm
 
 
@@ -230,5 +226,8 @@ def main():
 
 
 if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
     figs = main()
+    del figs["data"] # remove intermediate output data
+    savefig(figs)
     plt.show()
