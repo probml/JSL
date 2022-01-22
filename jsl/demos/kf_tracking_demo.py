@@ -1,11 +1,10 @@
 # This script produces an illustration of Kalman filtering and smoothing
-# Author: Gerardo Durán-Martín (@gerdm)
 
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
-from .plot_utils import plot_ellipse
-from ..lds.kalman_filter import KalmanFilter
+from jsl.demos.plot_utils import plot_ellipse, savefig
+from jsl.lds.kalman_filter import KalmanFilter
 
 def plot_tracking_values(observed, filtered, cov_hist, signal_label, ax):
     """
@@ -128,3 +127,8 @@ def main():
     dict_figures["kalman-tracking-smoothed"] = fig_smoothed
 
     return dict_figures
+
+if __name__ == "__main__":
+    figures = main()
+    savefig(figures)
+    plt.show()
