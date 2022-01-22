@@ -4,18 +4,13 @@ in terms of the speed. It also checks whether or not the inference algorithms gi
 Author : Aleyna Kara (@karalleyna)
 '''
 
-import superimport
-
 import time
-
+import distrax
 import jax.numpy as jnp
 from jax.random import PRNGKey, split, uniform
 import numpy as np
-
-
 from hmm_lib_log import HMM, hmm_forwards_backwards_log, hmm_viterbi_log, hmm_sample_log
 
-import distrax
 
 seed = 0
 rng_key = PRNGKey(seed)

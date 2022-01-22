@@ -1,11 +1,9 @@
 # Trains hidden markov models with discrete observations using Gradient Descent in a stateless way.
 # Author : Aleyna Kara(@karalleyna)
 
-import superimport
-
-import itertools
 
 import jax
+import itertools
 from jax.nn import softmax
 from jax.random import PRNGKey, split, normal
 from jax import jit, vmap

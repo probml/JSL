@@ -1,18 +1,14 @@
 # Implementation of the Hidden Markov Model for discrete observations
 # Author: Gerardo Duran-Martin (@gerdm), Aleyna Kara (@karalleyna)
 
-import superimport
-
-from dataclasses import dataclass
-
-from numpy.random import seed
-import numpy as np
 
 import jax
+import numpy as np
 import jax.numpy as jnp
+from dataclasses import dataclass
+from numpy.random import seed
 from jax import lax, vmap, jit
 from jax.scipy.special import logit
-
 from functools import partial
 
 #!pip install flax
