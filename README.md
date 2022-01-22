@@ -13,15 +13,17 @@ unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
 # Installation
 
 We assume you have already installed [JAX](https://github.com/google/jax#installation) and
-[Tensorflow](https://www.tensorflow.org/install) and [Torch](https://pytorch.org/),
+[Tensorflow](https://www.tensorflow.org/install),
 since the details on how to do this depend on whether you have a CPU, GPU, etc.
 (This step is not necessary in Colab.)
 
-Rather than install other packages manually, we jist require that you install
-the [superimport](https://colab.research.google.com/github/probml/probml-notebooks/blob/main/notebooks/Superimport.ipynb)
-library. This will automatically install packages for any file which contains the line `import superimport'.
+Now install these packages:
+
 ```
+pip install --upgrade git+https://github.com/google/flax.git
+pip install blackjax
 pip install superimport 
+pip install fire
 ```
 
 Then install JSL:
