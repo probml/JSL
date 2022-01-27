@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from jax import vmap, jit
 from jax.random import split, randint, PRNGKey, permutation
 from functools import partial
+#!pip install graphviz
+from graphviz import Digraph
 
 @partial(jit, static_argnums=(2,))
 def hmm_sample_minibatches(observations, valid_lens, batch_size, rng_key):
@@ -90,8 +92,6 @@ def pad_sequences(observations, valid_lens, pad_val=0):
 
     Parameters
     ----------
-    params : HMMNumpy or HMMJax
-        Hidden Markov Model
 
     observations : array(N, seq_len)
         All observation sequences
@@ -112,3 +112,52 @@ def pad_sequences(observations, valid_lens, pad_val=0):
         return jnp.where(idx <= len, seq, pad_val)
     ragged_dataset = vmap(pad, in_axes=(0, 0))(observations, valid_lens), valid_lens
     return ragged_dataset
+
+
+def hmm_plot_graphviz(trans_mat, obs_mat, init_dist, file_name, states=[], observations=[]):
+    """
+    Visualizes HMM transition matrix and observation matrix using graphhiz.
+
+    Parameters
+    ----------
+    trans_mat, obs_mat, init_dist: arrays
+
+    file_name : str
+        Name of file which stores the output.
+        The function creates file_name.pdf and file_name; the latter is a .dot text file.
+
+    states: List(num_hidden)
+        Names of hidden states
+
+    observations: List(num_obs)
+        Names of observable events
+
+    Returns
+    -------
+    dot object, that can be displayed in colab
+    """
+
+
+
+    n_states, n_obs = obs_mat.shape
+
+    dot = Digraph(comment='HMM')
+    if not states:
+        states = [f'State {i+1}' for i in range(n_states)]
+    if not observations:
+        observations = [f'Obs {i+1}' for i in range(n_obs)]
+
+    # Creates hidden state nodes
+    for i, name in enumerate(states):
+        table = [f'<TR><TD>{observations[j]}</TD><TD>{"%.2f" % prob}</TD></TR>' for j, prob in
+                 enumerate(obs_mat[i])]
+        label = f'''<<TABLE><TR><TD BGCOLOR="lightblue" COLSPAN="2">{name}</TD></TR>{''.join(table)}</TABLE>>'''
+        dot.node(f's{i}', label=label)
+
+    # Writes transition probabilities
+    for i in range(n_states):
+        for j in range(n_states):
+            dot.edge(f's{i}', f's{j}', label=str('%.2f' % trans_mat[i, j]))
+    dot.attr(rankdir='LR')
+    # dot.render(file_name, view=True)
+    return dot

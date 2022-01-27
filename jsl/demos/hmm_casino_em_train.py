@@ -10,8 +10,8 @@ import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax.random import split, PRNGKey, randint
-from jsl.hmm.hmm_discrete_lib import HMMNumpy, HMMJax, hmm_sample_jax, hmm_plot_graphviz
-from jsl.hmm.hmm_discrete_em_lib import init_random_params_jax, hmm_em_numpy, hmm_em_jax
+from jsl.hmm.hmm_lib import HMMNumpy, HMMJax, hmm_sample_jax
+from jsl.hmm.hmm_lib import init_random_params_jax, hmm_em_numpy, hmm_em_jax
 from jsl.hmm import hmm_utils
 
 
@@ -81,9 +81,15 @@ def main():
     dict_figures["em-jax"] = fig
 
     states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
-    dotfile_np = hmm_plot_graphviz(params_numpy, "hmm_casino_train_np", states, observations)
-    dotfile_jax = hmm_plot_graphviz(params_jax, "hmm_casino_train_jax", states, observations)
+    #dotfile_np = hmm_plot_graphviz(params_numpy, "hmm_casino_train_np", states, observations)
+    dotfile_np = hmm_utils.hmm_plot_graphviz(params_numpy.trans_mat, params_numpy.obs_mat, params_numpy.init_dist,
+        "hmm_casino_train_np", states, observations)
+
+    #dotfile_jax = hmm_plot_graphviz(params_jax, "hmm_casino_train_jax", states, observations)
+    dotfile_jax = hmm_utils.hmm_plot_graphviz(params_jax.trans_mat, params_jax.obs_mat, params_jax.init_dist,
+        "hmm_casino_train_np", states, observations)
     dotfile_dict = {"graph-numpy": dotfile_np, "graph-jax": dotfile_jax}
+
     
     return dict_figures, dotfile_dict
 

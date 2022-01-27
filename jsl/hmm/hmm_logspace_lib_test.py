@@ -9,7 +9,7 @@ import distrax
 import jax.numpy as jnp
 from jax.random import PRNGKey, split, uniform
 import numpy as np
-from hmm_lib_log import HMM, hmm_forwards_backwards_log, hmm_viterbi_log, hmm_sample_log
+from hmm_logspace_lib import HMM, hmm_forwards_backwards_log, hmm_viterbi_log, hmm_sample_log
 
 
 seed = 0
