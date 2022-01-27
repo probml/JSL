@@ -2,11 +2,11 @@
 # Author : Aleyna Kara(@karalleyna)
 
 import jax
-import jax.numpy as jnp
-import hmm_discrete_lib as hmm
 import numpy as np
+import jax.numpy as jnp
+import jsl.hmm.hmm_discrete_lib as hmm
 from scipy.special import softmax
-from jax import vmap, jit
+from jax import vmap
 from jax.ops import index_update, index
 from jax.random import PRNGKey
 from dataclasses import dataclass
@@ -17,15 +17,16 @@ class PriorsNumpy:
    obs_pseudo_counts: np.array
    init_pseudo_counts: np.array
 
+
 @dataclass
 class PriorsJax:
    trans_pseudo_counts: jnp.array
    obs_pseudo_counts: jnp.array
    init_pseudo_counts: jnp.array
 
-def init_random_params_numpy(sizes, random_state):
-    '''
 
+def init_random_params_numpy(sizes, random_state):
+    """
     Initializes the components of HMM from normal distibution
 
     Parameters
@@ -40,7 +41,7 @@ def init_random_params_numpy(sizes, random_state):
     -------
     * HMMNumpy
         Hidden Markov Model
-    '''
+    """
     num_hidden, num_obs = sizes
     np.random.seed(random_state)
     return hmm.HMMNumpy(softmax(np.random.randn(num_hidden, num_hidden), axis=1),
@@ -49,8 +50,7 @@ def init_random_params_numpy(sizes, random_state):
 
 
 def init_random_params_jax(sizes, rng_key):
-    '''
-
+    """
     Initializes the components of HMM from uniform distibution
 
     Parameters
@@ -65,7 +65,7 @@ def init_random_params_jax(sizes, rng_key):
     -------
     * HMMJax
         Hidden Markov Model
-    '''
+    """
     num_hidden, num_obs = sizes
     rng_key, rng_a, rng_b, rng_pi = jax.random.split(rng_key, 4)
     return hmm.HMMJax(jax.nn.softmax(jax.random.normal(rng_a, (num_hidden, num_hidden)), axis=1),
@@ -73,7 +73,7 @@ def init_random_params_jax(sizes, rng_key):
                   jax.nn.softmax(jax.random.normal(rng_pi, (num_hidden,))))
 
 def compute_expected_trans_counts_numpy(params, alpha, beta, obs, T):
-    '''
+    """
     Computes the expected transition counts by summing ksi_{jk} for the observation given for all states j and k.
     ksi_{jk} for any time t in [0, T-1] can be calculated as the multiplication of the probability of ending
     in state j at t, the probability of starting in state k at t+1, the transition probability a_{jk} and b_{k obs[t+1]}.
@@ -101,7 +101,7 @@ def compute_expected_trans_counts_numpy(params, alpha, beta, obs, T):
 
     * array
         The matrix of shape (n_states, n_states) representing expected transition counts given obs o.
-    '''
+    """
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
     n_states, n_obs = obs_mat.shape
 
@@ -115,7 +115,7 @@ def compute_expected_trans_counts_numpy(params, alpha, beta, obs, T):
     return AA
 
 def compute_expected_trans_counts_jax(params, alpha, beta, observations):
-    '''
+    """
     Computes the expected transition counts by summing ksi_{jk} for the observation given for all states j and k.
     ksi_{jk} for any time t in [0, T-1] can be calculated as the multiplication of the probability of ending
     in state j at t, the probability of starting in state k at t+1, the transition probability a_{jk} and b_{k obs[t+1]}.
@@ -141,7 +141,7 @@ def compute_expected_trans_counts_jax(params, alpha, beta, observations):
     ----------
     * array
         A matrix of shape (n_states, n_states) representing expected transition counts
-    '''
+    """
     def ksi_(trans_mat, obs_mat, alpha, beta, obs):
         return (alpha * trans_mat.T * beta * obs_mat[:, obs]).T
 
@@ -164,7 +164,7 @@ def compute_expected_trans_counts_jax(params, alpha, beta, observations):
 
 
 def compute_expected_obs_counts_numpy(gamma, obs, T, n_states, n_obs):
-    '''
+    """
     Computes the expected observation count for each observation o by summing the probability of being at any of the
     states for each time t.
     Parameters
@@ -188,7 +188,7 @@ def compute_expected_obs_counts_numpy(gamma, obs, T, n_states, n_obs):
     ----------
     * array
         A matrix of shape (n_states, n_obs) representing expected observation counts given observation sequence.
-    '''
+    """
     BB = np.zeros((n_states, n_obs))
     for t in range(T):
         o = obs[t]
@@ -196,7 +196,7 @@ def compute_expected_obs_counts_numpy(gamma, obs, T, n_states, n_obs):
     return BB
 
 def compute_expected_obs_counts_jax(gamma, obs, n_states, n_obs):
-    '''
+    """
     Computes the expected observation count for each observation o by summing the probability of being at any of the
     states for each time t.
     Parameters
@@ -217,7 +217,7 @@ def compute_expected_obs_counts_jax(gamma, obs, n_states, n_obs):
     ----------
     * array
         A matrix of shape (n_states, n_obs) representing expected observation counts given observation sequence.
-    '''
+    """
     def scan_fn(BB, elems):
         o, g = elems
         BB = index_update(BB, index[:, o], BB[:, o] + g)
@@ -228,7 +228,7 @@ def compute_expected_obs_counts_jax(gamma, obs, n_states, n_obs):
     return BB
 
 def hmm_e_step_numpy(params, observations, valid_lengths):
-    '''
+    """
 
     Calculates the the expectation of the complete loglikelihood over the distribution of
     observations given the current parameters
@@ -259,7 +259,7 @@ def hmm_e_step_numpy(params, observations, valid_lengths):
     * float
         The sum of the likelihood, p(o | lambda) where lambda stands for (trans_mat, obs_mat, init_dist) triple, for
         each observation sequence o.
-    '''
+    """
     N, _ = observations.shape
 
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
@@ -281,7 +281,7 @@ def hmm_e_step_numpy(params, observations, valid_lengths):
     return trans_counts, obs_counts, init_counts, loglikelihood
 
 def hmm_e_step_jax(params, observations, valid_lengths):
-    '''
+    """
 
     Calculates the the expectation of the complete loglikelihood over the distribution of
     observations given the current parameters
@@ -312,7 +312,7 @@ def hmm_e_step_jax(params, observations, valid_lengths):
     * float
         The sum of the likelihood, p(o | lambda) where lambda stands for (trans_mat, obs_mat, init_dist) triple, for
         each observation sequence o.
-    '''
+    """
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
     n_states, n_obs = obs_mat.shape
 
@@ -328,7 +328,7 @@ def hmm_e_step_jax(params, observations, valid_lengths):
     return trans_counts, obs_counts, init_counts, loglikelihood
 
 def hmm_m_step_numpy(counts, priors=None):
-    '''
+    """
 
     Recomputes new parameters from A, B and pi using max likelihood.
 
@@ -345,7 +345,7 @@ def hmm_m_step_numpy(counts, priors=None):
     * HMMNumpy
         Hidden Markov Model
 
-    '''
+    """
     trans_counts, obs_counts, init_counts = counts
 
     if priors is not None:
@@ -360,7 +360,7 @@ def hmm_m_step_numpy(counts, priors=None):
     return hmm.HMMNumpy(A, B, pi)
 
 def hmm_m_step_jax(counts, priors=None):
-    '''
+    """
 
     Recomputes new parameters from A, B and pi using max likelihood.
 
@@ -377,7 +377,7 @@ def hmm_m_step_jax(counts, priors=None):
     * HMMJax
         Hidden Markov Model
 
-    '''
+    """
     trans_counts, obs_counts, init_counts = counts
 
     if priors is not None:
@@ -396,7 +396,7 @@ def hmm_m_step_jax(counts, priors=None):
 
 def hmm_em_numpy(observations, valid_lengths, n_hidden=None, n_obs=None,
                  init_params=None, priors=None, num_epochs=1, random_state=None):
-    '''
+    """
     Implements Baum–Welch algorithm which is used for finding its components, A, B and pi.
 
     Parameters
@@ -432,7 +432,7 @@ def hmm_em_numpy(observations, valid_lengths, n_hidden=None, n_obs=None,
 
     * array
         Negative loglikelihoods each of which can be interpreted as the loss value at the current iteration.
-    '''
+    """
 
     if random_state is None:
         random_state = 0
@@ -455,7 +455,7 @@ def hmm_em_numpy(observations, valid_lengths, n_hidden=None, n_obs=None,
 
 def hmm_em_jax(observations, valid_lengths, n_hidden=None, n_obs=None,
                init_params=None, priors=None, num_epochs=1, rng_key=None):
-    '''
+    """
     Implements Baum–Welch algorithm which is used for finding its components, A, B and pi.
 
     Parameters
@@ -491,7 +491,7 @@ def hmm_em_jax(observations, valid_lengths, n_hidden=None, n_obs=None,
 
     * array
         Negative loglikelihoods each of which can be interpreted as the loss value at the current iteration.
-    '''
+    """
     if rng_key is None:
         rng_key = PRNGKey(0)
 
