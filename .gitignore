@@ -2,6 +2,7 @@
 *.pdf
 .DS_Store
 .vscode/
+hmm_casino_params
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
