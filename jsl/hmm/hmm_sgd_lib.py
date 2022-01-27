@@ -4,17 +4,16 @@
 
 import jax
 import itertools
+from jax import jit
 from jax.nn import softmax
 from jax.random import PRNGKey, split, normal
-from jax import jit, vmap
-
-from hmm_utils import hmm_sample_minibatches
-from hmm_discrete_lib import HMMJax, hmm_loglikelihood_jax
+from jsl.hmm.hmm_utils import hmm_sample_minibatches
+from jsl.hmm.hmm_discrete_lib import HMMJax, hmm_loglikelihood_jax
 
 opt_init, opt_update, get_params = None, None, None
 
 def init_random_params(sizes, rng_key):
-    '''
+    """
     Initializes the components of HMM from normal distibution
 
     Parameters
@@ -35,7 +34,7 @@ def init_random_params(sizes, rng_key):
 
     * array(1, num_hidden)
       Initial distribution probabilities
-    '''
+    """
     num_hidden, num_obs = sizes
     rng_key, rng_a, rng_b, rng_pi = split(rng_key, 4)
     return HMMJax(normal(rng_a, (num_hidden, num_hidden)),
@@ -45,7 +44,7 @@ def init_random_params(sizes, rng_key):
 
 @jit
 def loss_fn(params, batch, lens):
-    '''
+    """
     Objective function of hidden markov models for discrete observations. It returns the mean of the negative
     loglikelihood of the sequence of observations
 
@@ -64,7 +63,7 @@ def loss_fn(params, batch, lens):
     -------
     * float
         The mean negative loglikelihood of the minibatch
-    '''
+    """
     params_soft = HMMJax(softmax(params.trans_mat, axis=1),
                          softmax(params.obs_mat, axis=1),
                          softmax(params.init_dist))
@@ -73,7 +72,7 @@ def loss_fn(params, batch, lens):
 
 @jit
 def update(i, opt_state, batch, lens):
-    '''
+    """
     Objective function of hidden markov models for discrete observations. It returns the mean of the negative
     loglikelihood of the sequence of observations
 
@@ -96,14 +95,14 @@ def update(i, opt_state, batch, lens):
 
     * float
         The mean negative loglikelihood of the minibatch, i.e. loss value for the current iteration.
-    '''
+    """
     params = get_params(opt_state)
     loss, grads = jax.value_and_grad(loss_fn)(params, batch, lens)
     return opt_update(i, grads, opt_state), loss
 
 
 def fit(observations, lens, num_hidden, num_obs, batch_size, optimizer,rng_key=None, num_epochs=1):
-    '''
+    """
     Trains the HMM model with the given number of hidden states and observations via any optimizer.
 
     Parameters
@@ -136,7 +135,7 @@ def fit(observations, lens, num_hidden, num_obs, batch_size, optimizer,rng_key=N
 
     * array
       Consists of training losses
-    '''
+    """
     global opt_init, opt_update, get_params
 
     if rng_key is None:
