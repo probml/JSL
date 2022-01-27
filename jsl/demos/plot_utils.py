@@ -29,6 +29,14 @@ def plot_ellipse(Sigma, mu, ax, n_std=3.0, facecolor='none', edgecolor='k', plot
     return ax.add_patch(ellipse)
 
 
+def savedotfile(dotfiles):
+    if "FIGDIR" in os.environ:
+        figdir = os.environ["FIGDIR"]
+        for name, dot in dotfiles.items():
+            fname_full = os.path.join(figdir, name)
+            dot.render(fname_full)
+            print(f"saving dot file to {fname_full}")
+
 def savefig(figures):
     if "FIGDIR" in os.environ:
         figdir = os.environ["FIGDIR"]
