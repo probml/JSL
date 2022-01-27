@@ -3,22 +3,16 @@ This demo shows the parameter estimations of HMMs via Baulm-Welch algorithm on t
 Author : Aleyna Kara(@karalleyna)
 '''
 
-import superimport
-
-import jax.numpy as jnp
-from jax.random import split, PRNGKey, randint
-
-import numpy as np
-
-from hmm_discrete_lib import HMMNumpy, HMMJax, hmm_sample_jax
-from hmm_discrete_lib import hmm_plot_graphviz
-
-from hmm_discrete_em_lib import init_random_params_jax
-from hmm_discrete_em_lib import hmm_em_numpy, hmm_em_jax
-
-import hmm_utils
+# import superimport
 
 import time
+import numpy as np
+import jax.numpy as jnp
+from jax.random import split, PRNGKey, randint
+from jsl.hmm.hmm_discrete_lib import HMMNumpy, HMMJax, hmm_sample_jax, hmm_plot_graphviz
+from jsl.hmm.hmm_discrete_em_lib import (init_random_params_jax, hmm_em_numpy, hmm_em_jax)
+from jsl.hmm import hmm_utils
+
 
 A = jnp.array([
     [0.95, 0.05],
