@@ -3,23 +3,19 @@
 
 # Author: Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
 
-import superimport
+# import superimport
 
 import logging
-logging.getLogger('absl').setLevel(logging.CRITICAL)
-
+import distrax
+import numpy as np
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
+import tensorflow_probability as tfp
+from distrax import HMM
 from jax import vmap
 from jax.random import PRNGKey
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-import distrax
-from distrax import HMM
-import tensorflow_probability as tfp
-
-import pyprobml_utils as pml
+logging.getLogger('absl').setLevel(logging.CRITICAL)
 
 def plot_2dhmm(hmm, samples_obs, samples_state, colors, ax, xmin, xmax, ymin, ymax, step=1e-2):
     """
@@ -61,10 +57,7 @@ def plot_2dhmm(hmm, samples_obs, samples_state, colors, ax, xmin, xmax, ymin, ym
 
     return ax, color_sample
 
-if __name__ == "__main__":
-    plt.rcParams["axes.spines.right"] = False
-    plt.rcParams["axes.spines.top"] = False
-
+def main():
     initial_probs = jnp.array([0.3, 0.2, 0.5])
 
     # transition matrix
@@ -108,12 +101,22 @@ if __name__ == "__main__":
     ymin, ymax = 0, 1.2
     colors = ["tab:green", "tab:blue", "tab:red"]
 
+    dict_figures = {}
     fig, ax = plt.subplots()
     _, color_sample = plot_2dhmm(hmm, samples_obs, samples_state, colors, ax, xmin, xmax, ymin, ymax)
-    pml.savefig("hmm_lillypad_2d.pdf")
+    dict_figures["hmm-lillypad-2d"] = fig
 
     fig, ax = plt.subplots()
     ax.step(range(n_samples), samples_state, where="post", c="black", linewidth=1, alpha=0.3)
     ax.scatter(range(n_samples), samples_state, c=color_sample, zorder=3)
-    pml.savefig("hmm_lillypad_step.pdf")
+    dict_figures["hmm-lillypad-step"] = fig
+
+    return dict_figures
+
+if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
+    plt.rcParams["axes.spines.right"] = False
+    plt.rcParams["axes.spines.top"] = False
+    figs = main()
+    savefig(figs)
     plt.show()
