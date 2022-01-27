@@ -1,12 +1,11 @@
 # Common functions that can be used for any hidden markov model type.
 # Author: Aleyna Kara(@karalleyna)
 
+import jax.numpy as jnp
+import matplotlib.pyplot as plt
 from jax import vmap, jit
 from jax.random import split, randint, PRNGKey, permutation
 from functools import partial
-import jax.numpy as jnp
-
-import matplotlib.pyplot as plt
 
 @partial(jit, static_argnums=(2,))
 def hmm_sample_minibatches(observations, valid_lens, batch_size, rng_key):
@@ -45,6 +44,7 @@ def hmm_sample_minibatches(observations, valid_lens, batch_size, rng_key):
     minibatches = vmap(create_mini_batch)(batch_indices)
     return minibatches
 
+
 @partial(jit, static_argnums=(1, 2, 3))
 def hmm_sample_n(params, sample_fn,  n, max_len, rng_key):
     '''
@@ -82,6 +82,7 @@ def hmm_sample_n(params, sample_fn,  n, max_len, rng_key):
     observations = vmap(sample_, in_axes=(None, None, 0))(params, max_len, keys)
     return observations, lens
 
+
 @jit
 def pad_sequences(observations, valid_lens, pad_val=0):
     '''
@@ -111,17 +112,3 @@ def pad_sequences(observations, valid_lens, pad_val=0):
         return jnp.where(idx <= len, seq, pad_val)
     ragged_dataset = vmap(pad, in_axes=(0, 0))(observations, valid_lens), valid_lens
     return ragged_dataset
-
-def plot_loss_curve(loss_values, title=""):
-    '''
-    Plots loss curve
-
-    Parameters
-    ----------
-    loss_values : array
-    title : str
-    '''
-    plt.title(title)
-    plt.xlabel("Number of Iterations")
-    plt.plot(loss_values)
-    plt.show()
