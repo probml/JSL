@@ -89,11 +89,13 @@ def main():
         ax.set_title(f"{title}")
         dict_figures[filename] = fig
     dotfile = hmm_plot_graphviz(params_sgd, "hmm_casino_sgd_train")
+    dotfile_dict = {"hmm-casino-dot": dotfile}
 
-    return dict_figures, dotfile
+    return dict_figures, dotfile_dict
 
 if __name__ == "__main__":
-    from jsl.demos.plot_utils import savefig
+    from jsl.demos.plot_utils import savefig, savedotfile
     figs, dotfile = main()
     savefig(figs)
+    savedotfile(dotfile)
     plt.show()

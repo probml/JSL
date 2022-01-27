@@ -127,11 +127,13 @@ def main():
     file_name = "hmm_casino_params"
     states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
     dotfile = hmm_plot_graphviz(params, file_name, states, observations)
+    dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
-    return dict_figures, dotfile
+    return dict_figures, dotfile_dict
 
 if __name__ == "__main__":
-    from jsl.demos.plot_utils import savefig
+    from jsl.demos.plot_utils import savefig, savedotfile
     figs, dotfile = main()
     savefig(figs)
+    savedotfile(dotfile)
     plt.show()

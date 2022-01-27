@@ -83,12 +83,13 @@ def main():
     states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
     dotfile_np = hmm_plot_graphviz(params_numpy, "hmm_casino_train_np", states, observations)
     dotfile_jax = hmm_plot_graphviz(params_jax, "hmm_casino_train_jax", states, observations)
-    dotfiles = [dotfile_np, dotfile_jax]
+    dotfile_dict = {"graph-numpy": dotfile_np, "graph-jax": dotfile_jax}
     
-    return dict_figures, dotfiles
+    return dict_figures, dotfile_dict
 
 if __name__ == "__main__":
-    from jsl.demos.plot_utils import savefig
+    from jsl.demos.plot_utils import savefig, savedotfile
     figs, dotfiles = main()
     savefig(figs)
+    savedotfile(dotfiles)
     plt.show()
