@@ -9,13 +9,11 @@
 
 #import superimport
 
-from ..hmm_discrete_lib import HMMNumpy
-from ..hmm_discrete_lib import hmm_sample_numpy, hmm_forwards_backwards_numpy, hmm_viterbi_numpy
+from jsl.hmm.hmm_discrete_lib import (HMMNumpy, hmm_sample_numpy, hmm_plot_graphviz,
+                                  hmm_forwards_backwards_numpy, hmm_viterbi_numpy)
 
 import numpy as np
 import matplotlib.pyplot as plt
-#import pyprobml_utils as pml
-from ..hmm_discrete_lib import hmm_plot_graphviz
 
 def find_dishonest_intervals(z_hist):
     """
@@ -74,56 +72,66 @@ def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlabel("Observation number")
 
-# state transition matrix
-A = np.array([
-    [0.95, 0.05],
-    [0.10, 0.90]
-])
+def main():
+    # state transition matrix
+    A = np.array([
+        [0.95, 0.05],
+        [0.10, 0.90]
+    ])
 
-# observation matrix
-B = np.array([
-    [1/6, 1/6, 1/6, 1/6, 1/6, 1/6], # fair die
-    [1/10, 1/10, 1/10, 1/10, 1/10, 5/10] # loaded die
-])
+    # observation matrix
+    B = np.array([
+        [1/6, 1/6, 1/6, 1/6, 1/6, 1/6], # fair die
+        [1/10, 1/10, 1/10, 1/10, 1/10, 5/10] # loaded die
+    ])
 
-n_samples = 300
-init_state_dist = np.array([1, 1]) / 2
-params = HMMNumpy(A, B, init_state_dist)
-z_hist, x_hist = hmm_sample_numpy(params, n_samples, 314)
+    n_samples = 300
+    init_state_dist = np.array([1, 1]) / 2
+    params = HMMNumpy(A, B, init_state_dist)
+    z_hist, x_hist = hmm_sample_numpy(params, n_samples, 314)
 
-z_hist_str = "".join((z_hist + 1).astype(str))[:60]
-x_hist_str = "".join((x_hist + 1).astype(str))[:60]
+    z_hist_str = "".join((z_hist + 1).astype(str))[:60]
+    x_hist_str = "".join((x_hist + 1).astype(str))[:60]
 
-print("Printing sample observed/latent...")
-print(f"x: {x_hist_str}")
-print(f"z: {z_hist_str}")
+    print("Printing sample observed/latent...")
+    print(f"x: {x_hist_str}")
+    print(f"z: {z_hist_str}")
 
-# Do inference
-alpha, _, gamma, loglik = hmm_forwards_backwards_numpy(params, x_hist, len(x_hist))
-print(f'Loglikelihood: {loglik}')
+    # Do inference
+    alpha, _, gamma, loglik = hmm_forwards_backwards_numpy(params, x_hist, len(x_hist))
+    print(f"Loglikelihood: {loglik}")
 
-z_map = hmm_viterbi_numpy(params, x_hist)
+    z_map = hmm_viterbi_numpy(params, x_hist)
 
-# Plot results
-fig, ax = plt.subplots()
-plot_inference(alpha, z_hist, ax)
-ax.set_ylabel("p(loaded)")
-ax.set_title("Filtered")
-fig.savefig("hmm_casino_filter.pdf")
+    dict_figures = {}
+    
+    # Plot results
+    fig, ax = plt.subplots()
+    plot_inference(alpha, z_hist, ax)
+    ax.set_ylabel("p(loaded)")
+    ax.set_title("Filtered")
+    dict_figures["hmm_casino_filter"] = fig
 
-fig, ax = plt.subplots()
-plot_inference(gamma, z_hist, ax)
-ax.set_ylabel("p(loaded)")
-ax.set_title("Smoothed")
-fig.savefig("hmm_casino_smooth.pdf")
+    fig, ax = plt.subplots()
+    plot_inference(gamma, z_hist, ax)
+    ax.set_ylabel("p(loaded)")
+    ax.set_title("Smoothed")
+    dict_figures["hmm_casino_smooth"] = fig
 
-fig, ax = plt.subplots()
-plot_inference(z_map, z_hist, ax, map_estimate=True)
-ax.set_ylabel("MAP state")
-ax.set_title("Viterbi")
-fig.savefig("hmm_casino_map.pdf")
-plt.show()
+    fig, ax = plt.subplots()
+    plot_inference(z_map, z_hist, ax, map_estimate=True)
+    ax.set_ylabel("MAP state")
+    ax.set_title("Viterbi")
+    dict_figures["hmm_casino_map"] = fig
 
-file_name = 'hmm_casino_params'
-states, observations = ['Fair Dice', 'Loaded Dice'], [str(i+1) for i in range(B.shape[1])]
-hmm_plot_graphviz(params, file_name, states, observations)
+    file_name = "hmm_casino_params"
+    states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
+    dotfile = hmm_plot_graphviz(params, file_name, states, observations)
+
+    return dict_figures, dotfile
+
+if __name__ == "__main__":
+    from jsl.demos.plot_utils import savefig
+    figs, dotfile = main()
+    savefig(figs)
+    plt.show()

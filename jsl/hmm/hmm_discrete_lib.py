@@ -636,5 +636,5 @@ def hmm_plot_graphviz(params, file_name, states=[], observations=[]):
         for j in range(n_states):
             dot.edge(f's{i}', f's{j}', label=str('%.2f' % trans_mat[i, j]))
     dot.attr(rankdir='LR')
-    dot.render(file_name, view=True)
+    # dot.render(file_name, view=True)
     return dot
