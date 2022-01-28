@@ -4,11 +4,14 @@
   <img width="500" alt="image" src="https://user-images.githubusercontent.com/4108759/146819263-7d476231-22c9-4e03-98c6-a6b300d99c5e.png">
 </p>
 
-JSL is a JAX library for Bayesian inference in linear and non-linear Gaussian state-space models.
-We assume that the model parameters are known, and just focus on state estimation.
+JSL is a JAX library for Bayesian inference in state space models.
+We support discrete state spaces (HMM) and continuous state spaces.
+For HMMs, we support exact inference (forwards-backwards and Viterbi) and MLE learning (using EM or SGD).
+For continuous SSMs, we assume that the model parameters are known, and just focus on state estimation.
+We support linear and non-linear dynamics/ observations; we assume all noise is Gaussian.
 For linear dynamical systems (LDS), we support Kalman filtering and RTS smoothing.
 For nonlinear dynamical systems (NLDS), we support extended Kalman filtering (EKF) with full and diagonal covariance,
-unscented Kalman filtering (UKF) and bootstrap particle filtering (PF).
+unscented Kalman filtering (UKF) and  particle filtering (PF).
 
 # Installation
 
@@ -39,62 +42,21 @@ cd JSL
 !pip install -e .
 ```
 
-# Running locally
+# Running the demos
 
-
-To see the available demos, run
-
+You can see how to use the library by looking at some of the demos.
+You can run the demos from inside a notebook like this
 ```
-python -m jsl list_demos
-```
-To run one, use this
-```
-python -m jsl run_demo [NAME_OF_DEMO]
+%run JSL/jsl/demos/kf_tracking_demo.py
+%run JSL/jsl/demos/hmm_casino_em_train.py
 ```
 
-Alternatively, you can run any demo directly from JSL after instalation by importing the desired demo and running its `main()` function as follows:
-
-```python
-from jsl.demos import kf_tracking_demo as demo # replace name as necessary
-figures = demo.main()
+Most of the demos create figures. If you want to save them,
+you need to specify the FIGDIR environment variable, like this:
 ```
-
-The resulting variable `figures` is a dictionary with  keys being file names, and values being the output figures.
-This lets you save the results to a file if you wish.
-
-# Current available demos
-
-**Basic examples of a Kalman Filter. Based on the idea of tracking missiles**  
-Script: `kf_tracking_demo` Single example  
-Script: `kf_parallel_demo` In parallel
-
-**continous-time Kalman filtering of a linear dynamical system with imaginary eigenvalues**  
-Script: `kf_continuous_circle_demo`
-
-**Kalman filtering of a linear dynamical system with imaginary eigenvalues**  
-Script: `kf_continuous_circle_demo`
-
-**Filtering a non-linear system with Gaussian noise using the bootstrap filter**  
-Script: `bootstrap_filter_demo`
-
-**Estimating a non-linear dynamical system using EKF and UKF**  
-Script: `ekf_vs_ukf.py`
-
-**Estimating a continuous-time non-linear dynamical system using EKF**  
-Script: `ekf_continuous_demo.py`
-
-**Sequentially estimating the parameters of a linear regresison model using the Kalman filter (KF) algorithm**  
-Script: `linreg_kf_demo.py`
-
-**Sequentially estimating the parameters of a logistic regression model using the exponential-family EKF (EEKF)**  
-Script: `eekf_logistic_regression_demo.py`
-
-**Sequentially learning a multi-layered perceptron on 1d nonlinear regression problem using EKF and UKF**  
-Script: `ekf_vs_ukf_mlp_demo.py`, `ekf_mlp_anim_demo.py`.
-The animation script produces <a href="https://github.com/probml/probml-data/blob/main/data/ekf_mlp_demo.mp4">this video</a>.
-
-**Comparing EKF v.s. bootstrap filtering when there is non-gaussian noise added to the system**  
-Script `pendulum_1d_demo`
+import os
+os.environ["FIGDIR"]='../figures'
+```
 
 # Authors
   
