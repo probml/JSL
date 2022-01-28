@@ -88,6 +88,7 @@ def main():
     #dotfile_jax = hmm_plot_graphviz(params_jax, "hmm_casino_train_jax", states, observations)
     dotfile_jax = hmm_utils.hmm_plot_graphviz(params_jax.trans_mat, params_jax.obs_mat, params_jax.init_dist,
         "hmm_casino_train_np", states, observations)
+
     dotfile_dict = {"graph-numpy": dotfile_np, "graph-jax": dotfile_jax}
 
     

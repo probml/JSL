@@ -1,5 +1,6 @@
 # Example showcasing the learning process of the EKF algorithm.
 # This demo is based on the ekf_mlp_anim_demo.py demo.
+# The animation script produces <a href="https://github.com/probml/probml-data/blob/main/data/ekf_mlp_demo.mp4">this video</a>.
 
 import jax
 import jax.numpy as jnp
