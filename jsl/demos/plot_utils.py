@@ -1,6 +1,11 @@
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from numpy import linalg
 from matplotlib.patches import Ellipse, transforms
+from mpl_toolkits.mplot3d import Axes3D
+
+
 # https://matplotlib.org/devdocs/gallery/statistics/confidence_ellipse.html
 def plot_ellipse(Sigma, mu, ax, n_std=3.0, facecolor='none', edgecolor='k', plot_center='true', **kwargs):
     cov = Sigma
@@ -37,6 +42,7 @@ def savedotfile(dotfiles):
             dot.render(fname_full)
             print(f"saving dot file to {fname_full}")
 
+
 def savefig(figures):
     if "FIGDIR" in os.environ:
         figdir = os.environ["FIGDIR"]
@@ -45,3 +51,45 @@ def savefig(figures):
             print(f"saving image to {fname_full}")
             figure.savefig(f"{fname_full}.pdf")
             figure.savefig(f"{fname_full}.png")
+
+
+def scale_3d(ax, x_scale, y_scale, z_scale, factor):    
+    scale=np.diag([x_scale, y_scale, z_scale, 1.0])    
+    scale=scale*(1.0/scale.max())    
+    scale[3,3]=factor
+    def short_proj():    
+        return np.dot(Axes3D.get_proj(ax), scale)    
+    return short_proj    
+
+def style3d(ax, x_scale, y_scale, z_scale, factor=0.62):
+    plt.gca().patch.set_facecolor('white')
+    ax.w_xaxis.set_pane_color((0, 0, 0, 0))
+    ax.w_yaxis.set_pane_color((0, 0, 0, 0))
+    ax.w_zaxis.set_pane_color((0, 0, 0, 0))
+    ax.get_proj = scale_3d(ax, x_scale, y_scale, z_scale, factor)
+
+
+def kdeg(x, X, h):
+    """
+    KDE under a gaussian kernel
+
+    Parameters
+    ----------
+    x: array(eval, D)
+    X: array(obs, D)
+    h: float
+
+    Returns
+    -------
+    array(eval):
+        KDE around the observed values
+    """
+    N, D = X.shape
+    nden, _ = x.shape
+
+    Xhat = X.reshape(D, 1, N)
+    xhat = x.reshape(D, nden, 1)
+    u = xhat - Xhat
+    u = linalg.norm(u, ord=2, axis=0) ** 2 / (2 * h ** 2)
+    px = np.exp(-u).sum(axis=1) / (N * h * np.sqrt(2 * np.pi))
+    return px
