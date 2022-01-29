@@ -43,14 +43,14 @@ def savedotfile(dotfiles):
             print(f"saving dot file to {fname_full}")
 
 
-def savefig(figures):
+def savefig(figures, *args, **kwargs):
     if "FIGDIR" in os.environ:
         figdir = os.environ["FIGDIR"]
         for name, figure in figures.items():
             fname_full = os.path.join(figdir, name)
             print(f"saving image to {fname_full}")
-            figure.savefig(f"{fname_full}.pdf")
-            figure.savefig(f"{fname_full}.png")
+            figure.savefig(f"{fname_full}.pdf", *args, **kwargs)
+            figure.savefig(f"{fname_full}.png", *args, **kwargs)
 
 
 def scale_3d(ax, x_scale, y_scale, z_scale, factor):    
