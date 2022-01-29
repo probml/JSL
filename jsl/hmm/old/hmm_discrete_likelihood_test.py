@@ -4,7 +4,6 @@ calculates the likelihood of each observation sequence in every batch using vmap
 Author : Aleyna Kara (@karalleyna)
 '''
 
-import superimport
 
 from jax import vmap, jit
 from jax.random import split, randint, PRNGKey

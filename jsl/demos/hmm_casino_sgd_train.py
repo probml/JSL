@@ -14,9 +14,9 @@ import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from jax.example_libraries import optimizers
 from jax.random import split, randint, PRNGKey
-from jsl.hmm.hmm_sgd_lib import fit
+from jsl.hmm.hmm_lib import fit
 from jsl.hmm.hmm_utils import pad_sequences, hmm_sample_n
-from jsl.hmm.hmm_discrete_lib import HMMJax, hmm_sample_jax, hmm_plot_graphviz
+from jsl.hmm.hmm_lib import HMMJax, hmm_sample_jax, hmm_plot_graphviz
 
 def main():
     # state transition matrix

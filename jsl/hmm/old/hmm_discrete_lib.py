@@ -1,4 +1,7 @@
-# Implementation of the Hidden Markov Model for discrete observations
+# Inference and learning code for Hidden Markov Models using discrete observations.
+# Has Numpy and Jax versions of each function.
+# The Jax version has been upstreamed to https://github.com/deepmind/distrax/blob/master/distrax/_src/utils/hmm.py.
+# This version is kept for historical purposes.
 # Author: Gerardo Duran-Martin (@gerdm), Aleyna Kara (@karalleyna)
 
 
@@ -11,10 +14,9 @@ from jax import lax, vmap, jit
 from jax.scipy.special import logit
 from functools import partial
 
+import superimport
 #!pip install flax
 import flax
-#!pip install graphviz
-from graphviz import Digraph
 
 '''
 Hidden Markov Model class used in numpy implementations of inference algorithms.
@@ -586,55 +588,3 @@ def hmm_viterbi_jax(params, obs_seq, length=None):
     logp_hist = jnp.vstack([w0.reshape(1, n_states), logp_hist])
 
     return logp_hist.argmax(axis=1)
-
-def hmm_plot_graphviz(params, file_name, states=[], observations=[]):
-    """
-    Visualizes HMM transition matrix and observation matrix using graphhiz.
-
-    Parameters
-    ----------
-    params : HMMJax or HMMNumpy
-        Hidden Markov Model
-
-    file_name : str
-        Name of file which stores the output.
-        The function creates file_name.pdf and file_name; the latter is a .dot text file.
-
-    states: List(num_hidden)
-        Names of hidden states
-
-    observations: List(num_obs)
-        Names of observable events
-
-    Returns
-    -------
-    dot object, that can be displayed in colab
-    """
-
-    try:
-        trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
-    except:
-        raise TypeError('params must be of either HMMNumpy or HMMJax')
-
-    n_states, n_obs = obs_mat.shape
-
-    dot = Digraph(comment='HMM')
-    if not states:
-        states = [f'State {i+1}' for i in range(n_states)]
-    if not observations:
-        observations = [f'Obs {i+1}' for i in range(n_obs)]
-
-    # Creates hidden state nodes
-    for i, name in enumerate(states):
-        table = [f'<TR><TD>{observations[j]}</TD><TD>{"%.2f" % prob}</TD></TR>' for j, prob in
-                 enumerate(obs_mat[i])]
-        label = f'''<<TABLE><TR><TD BGCOLOR="lightblue" COLSPAN="2">{name}</TD></TR>{''.join(table)}</TABLE>>'''
-        dot.node(f's{i}', label=label)
-
-    # Writes transition probabilities
-    for i in range(n_states):
-        for j in range(n_states):
-            dot.edge(f's{i}', f's{j}', label=str('%.2f' % trans_mat[i, j]))
-    dot.attr(rankdir='LR')
-    # dot.render(file_name, view=True)
-    return dot
