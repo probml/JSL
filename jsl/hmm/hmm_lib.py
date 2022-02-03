@@ -548,21 +548,48 @@ def hmm_viterbi_numpy(params, obs_seq):
     * array(seq_len)
         Sequence of most MAP probable sequence of states
     """
-    trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
-    n_states, n_obs = obs_mat.shape
     seq_len = len(obs_seq)
 
-    logp_hist = np.zeros((seq_len, n_states))
-    wn = np.log(trans_mat) + np.log(init_dist) + np.log(obs_mat[:, obs_seq[0]])
-    wn = wn.max(axis=1)
-    logp_hist[0] = wn
 
-    for t in range(1, seq_len):
-        wn = np.log(trans_mat) + np.log(obs_mat[:, obs_seq[t]]) + wn
-        wn = wn.max(axis=1)
-        logp_hist[t] = wn
+    trans_mat, obs_mat, init_dist =  np.log(params.trans_mat),  np.log(params.obs_mat), np.log(params.init_dist)
 
-    return logp_hist.argmax(axis=1)
+    n_states, _ = obs_mat.shape
+
+    first_prob = init_dist + obs_mat[:, obs_seq[0]]
+
+    if len(obs_seq) == 1:
+        return np.expand_dims(np.argmax(first_prob), axis=0)
+
+    prev_prob = first_prob
+    most_likely_sources = []
+
+    for obs in obs_seq[1:]:
+        obs_prob = obs_mat[..., obs]
+        p = prev_prob[..., None] +  trans_mat + obs_prob[..., None, :]
+        max_p_given_successor = np.max(p, axis=-2)
+        most_likely_given_successor = np.argmax(p, axis=-2)
+        prev_prob = max_p_given_successor
+        most_likely_sources.append(most_likely_given_successor)
+
+    final_prob = prev_prob
+    final_state = np.argmax(final_prob)
+
+    most_likely_initial_given_successor = np.argmax(
+        trans_mat + final_prob, axis=-2)
+
+    most_likely_sources = np.vstack([
+        np.expand_dims(most_likely_initial_given_successor, axis=0),
+        np.array(most_likely_sources)])
+
+    most_likely_path, state = [], final_state
+
+    for most_likely_source in reversed(most_likely_sources[1:]):
+        state = jax.nn.one_hot(state, n_states)
+        most_likely = np.sum(most_likely_source * state).astype(np.int64)
+        state = most_likely
+        most_likely_path.append(most_likely)
+
+    return np.append(np.flip(most_likely_path), final_state)
 
 @jit
 def hmm_viterbi_jax(params, obs_seq, length=None):
@@ -589,26 +616,43 @@ def hmm_viterbi_jax(params, obs_seq, length=None):
 
     if length is None:
         length = seq_len
-    trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
 
-    n_states, _ = obs_mat.shape
+    trans_log_probs = jax.nn.log_softmax(jnp.log(params.trans_mat))
+    init_log_probs = jax.nn.log_softmax(jnp.log(params.init_dist))
+    obs_mat = jnp.log(params.obs_mat)
+    n_states, *_ = obs_mat.shape
 
-    w0 = jnp.log(trans_mat) + jnp.log(init_dist) + jnp.log(obs_mat[:, obs_seq[0]])
-    w0 = w0.max(axis=1)
+    first_log_prob = init_log_probs + obs_mat[:, obs_seq[0]]
 
-    def forwards_backwards(w_prev, t):
-        wn = jnp.where(t < length,
-                       jnp.log(trans_mat) + jnp.log(obs_mat[:, obs_seq[t]]) + w_prev,
-                       -jnp.inf + jnp.zeros_like(w_prev))
-        wn = wn.max(axis=1)
+    if len(obs_seq) == 1:
+        return jnp.expand_dims(jnp.argmax(first_log_prob), axis=0)
 
-        return wn, wn
+    def viterbi_forward(prev_logp, obs):
+        obs_logp = obs_mat[:, obs]
+        logp = prev_logp[..., None] + trans_log_probs + obs_logp[..., None, :]
+        max_logp_given_successor = jnp.max(logp, axis=-2)
+        most_likely_given_successor = jnp.argmax(logp, axis=-2)
+        return max_logp_given_successor, most_likely_given_successor
 
-    ts = jnp.arange(1, seq_len)
-    _, logp_hist = jax.lax.scan(forwards_backwards, w0, ts)
-    logp_hist = jnp.vstack([w0.reshape(1, n_states), logp_hist])
+    final_log_prob, most_likely_sources = jax.lax.scan(
+        viterbi_forward, first_log_prob, obs_seq[1:])
 
-    return logp_hist.argmax(axis=1)
+    most_likely_initial_given_successor = jnp.argmax(
+        trans_log_probs + first_log_prob, axis=-2)
+    most_likely_sources = jnp.concatenate([
+        jnp.expand_dims(most_likely_initial_given_successor, axis=0),
+        most_likely_sources], axis=0)
+
+    def viterbi_backward(state, most_likely_sources):
+        state = jax.nn.one_hot(state, n_states)
+        most_likely = jnp.sum(most_likely_sources * state).astype(jnp.int64)
+        return most_likely, most_likely
+
+    final_state = jnp.argmax(final_log_prob)
+    _, most_likely_path = jax.lax.scan(
+        viterbi_backward, final_state, most_likely_sources[1:], reverse=True)
+
+    return jnp.append(most_likely_path, final_state)
 
 
 ###############

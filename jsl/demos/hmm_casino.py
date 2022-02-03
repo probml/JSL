@@ -14,7 +14,6 @@
 from jsl.hmm.hmm_utils import hmm_plot_graphviz
 
 import numpy as np
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import distrax
