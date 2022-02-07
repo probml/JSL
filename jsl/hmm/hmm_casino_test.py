@@ -1,27 +1,55 @@
-# Occasionally dishonest casino example [Durbin98, p54]. This script
-# exemplifies a Hidden Markov Model (HMM) in which the throw of a die
-# may result in the die being biased (towards 6) or unbiased. If the dice turns out to
-# be biased, the probability of remaining biased is high, and similarly for the unbiased state.
-# Assuming we observe the die being thrown n times the goal is to recover the periods in which
-# the die was biased.
-# Original matlab code: https://github.com/probml/pmtk3/blob/master/demos/casinoDemo.m
-
-
-
-#from jsl.hmm.hmm_discrete_lib import (HMMNumpy, hmm_sample_numpy, hmm_plot_graphviz,
-#                                  hmm_forwards_backwards_numpy, hmm_viterbi_numpy)
-
-from jsl.hmm.hmm_utils import hmm_plot_graphviz
-
-import numpy as np
+'''
+Simple sanity check for all four Hidden Markov Models' implementations.
+'''
 import jax.numpy as jnp
+from jax.random import PRNGKey
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 import distrax
 from distrax import HMM
-from hmm_lib import HMMNumpy,  HMMJax, hmm_forwards_backwards_numpy, hmm_viterbi_numpy, hmm_viterbi_jax, hmm_forwards_backwards_jax
+
+from hmm_lib import HMMNumpy,  HMMJax,\
+    hmm_forwards_backwards_numpy, hmm_viterbi_numpy, \
+    hmm_viterbi_jax, hmm_forwards_backwards_jax
+
 import hmm_logspace_lib
 
-from jax.random import PRNGKey
+
+def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
+    """
+    Plot the estimated smoothing/filtering/map of a sequence of hidden states.
+    "Vertical gray bars denote times when the hidden
+    state corresponded to state 1. Blue lines represent the
+    posterior probability of being in that state given diﬀerent subsets
+    of observed data." See Markov and Hidden Markov models section for more info
+    Parameters
+    ----------
+    inference_values: array(n_samples, state_size)
+        Result of runnig smoothing method
+    z_hist: array(n_samples)
+        Latent simulation
+    ax: matplotlib.axes
+    state: int
+        Decide which state to highlight
+    map_estimate: bool
+        Whether to plot steps (simple plot if False)
+    """
+    n_samples = len(inference_values)
+    xspan = np.arange(1, n_samples + 1)
+    spans = find_dishonest_intervals(z_hist)
+    if map_estimate:
+        ax.step(xspan, inference_values, where="post")
+    else:
+        ax.plot(xspan, inference_values[:, state])
+
+    for span in spans:
+        ax.axvspan(*span, alpha=0.5, facecolor="tab:gray", edgecolor="none")
+    ax.set_xlim(1, n_samples)
+    #ax.set_ylim(0, 1)
+    ax.set_ylim(-0.1, 1.1)
+    ax.set_xlabel("Observation number")
 
 def find_dishonest_intervals(z_hist):
     """
@@ -117,3 +145,65 @@ z_map = hmm.viterbi(x_hist)
 assert np.allclose(z_map_numpy, z_map)
 assert np.allclose(z_map_jax, z_map)
 assert np.allclose(z_map_log, z_map)
+
+
+# Plot results
+fig, ax = plt.subplots()
+plot_inference(gamma_numpy, z_hist, ax)
+ax.set_ylabel("p(loaded)")
+ax.set_title("Smoothed")
+plt.savefig("hmm_casino_smooth_numpy.png")
+plt.show()
+
+fig, ax = plt.subplots()
+plot_inference(z_map_numpy, z_hist, ax, map_estimate=True)
+ax.set_ylabel("MAP state")
+ax.set_title("Viterbi")
+plt.savefig("hmm_casino_map_numpy.png")
+plt.show()
+
+
+# Plot results
+fig, ax = plt.subplots()
+plot_inference(gamma, z_hist, ax)
+ax.set_ylabel("p(loaded)")
+ax.set_title("Smoothed")
+#plt.savefig("hmm_casino_smooth_distrax.png")
+plt.show()
+
+fig, ax = plt.subplots()
+plot_inference(z_map, z_hist, ax, map_estimate=True)
+ax.set_ylabel("MAP state")
+ax.set_title("Viterbi")
+#plt.savefig("hmm_casino_map_distrax.png")
+plt.show()
+
+# Plot results
+fig, ax = plt.subplots()
+plot_inference(gamma_jax, z_hist, ax)
+ax.set_ylabel("p(loaded)")
+ax.set_title("Smoothed")
+#plt.savefig("hmm_casino_smooth_jax.png")
+plt.show()
+
+fig, ax = plt.subplots()
+plot_inference(z_map_jax, z_hist, ax, map_estimate=True)
+ax.set_ylabel("MAP state")
+ax.set_title("Viterbi")
+#plt.savefig("hmm_casino_map_jax.png")
+plt.show()
+
+# Plot results
+fig, ax = plt.subplots()
+plot_inference(jnp.exp(gamma_log), z_hist, ax)
+ax.set_ylabel("p(loaded)")
+ax.set_title("Smoothed")
+#plt.savefig("hmm_casino_smooth_log.png")
+plt.show()
+
+fig, ax = plt.subplots()
+plot_inference(z_map_log, z_hist, ax, map_estimate=True)
+ax.set_ylabel("MAP state")
+ax.set_title("Viterbi")
+#plt.savefig("hmm_casino_map_log.png")
+plt.show()
