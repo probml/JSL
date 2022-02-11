@@ -18,7 +18,7 @@ from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from jax.scipy.stats import norm
 
 # Import data and baseline solution
-from jsl.demos import logreg_biclusters_demo as demo
+from jsl.demos import logreg_biclusters as demo
 figures, data = demo.main()
 X = data["X"]
 y = data["y"]

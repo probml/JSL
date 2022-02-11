@@ -5,7 +5,7 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from jsl.demos import ekf_vs_ukf_mlp_demo as demo
+from jsl.demos import ekf_vs_ukf_mlp as demo
 import matplotlib.animation as animation
 from functools import partial
 from jax.random import PRNGKey, split, normal, multivariate_normal
