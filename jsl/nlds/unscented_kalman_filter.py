@@ -67,20 +67,18 @@ class UnscentedKalmanFilter(NLDS):
                             else self.lmbda / (self.d + self.lmbda) + (1 - self.alpha ** 2 + self.beta)
                             for i in range(2 * self.d + 1)])
         nsteps, *_ = sample_obs.shape
-        mu_t = init_state
-        Sigma_t = self.Q(init_state) if Vinit is None else Vinit
+        initial_mu_t = init_state
+        initial_Sigma_t = self.Q(init_state) if Vinit is None else Vinit
+
         if observations is None:
             observations = [()] * nsteps
         else:
             observations = [(obs,) for obs in observations]
 
-        mu_hist = jnp.zeros((nsteps, self.d))
-        Sigma_hist = jnp.zeros((nsteps, self.d, self.d))
+        def filter_step(params, carry):
+            mu_t, Sigma_t = params
+            observation, sample_observation = carry
 
-        mu_hist = index_update(mu_hist, 0, mu_t)
-        Sigma_hist = index_update(Sigma_hist, 0, Sigma_t)
-
-        for t in range(nsteps):
             # TO-DO: use jax.scipy.linalg.sqrtm when it gets added to lib
             comp1 = mu_t[:, None] + self.gamma * self.sqrtm(Sigma_t)
             comp2 = mu_t[:, None] - self.gamma * self.sqrtm(Sigma_t)
@@ -98,20 +96,24 @@ class UnscentedKalmanFilter(NLDS):
             # sigma_points = jnp.c_[mu_bar, comp1, comp2]
             sigma_points = jnp.concatenate((mu_bar[:, None], comp1, comp2), axis=1)
 
-            x_bar = self.fx(sigma_points, *observations[t])
+            x_bar = self.fx(sigma_points, *observation)
             x_hat = x_bar @ wm_vec
             St = x_bar - x_hat[:, None]
-            St = jnp.einsum("i,ji,ki->jk", wc_vec, St, St) + self.R(mu_t, *observations[t])
+            St = jnp.einsum("i,ji,ki->jk", wc_vec, St, St) + self.R(mu_t, *observation)
 
             mu_hat_component = z_bar - mu_bar[:, None]
             x_hat_component = x_bar - x_hat[:, None]
             Sigma_bar_y = jnp.einsum("i,ji,ki->jk", wc_vec, mu_hat_component, x_hat_component)
             Kt = Sigma_bar_y @ jnp.linalg.inv(St)
 
-            mu_t = mu_bar + Kt @ (sample_obs[t] - x_hat)
+            mu_t = mu_bar + Kt @ (sample_observation - x_hat)
             Sigma_t = Sigma_bar - Kt @ St @ Kt.T
 
-            mu_hist = index_update(mu_hist, t, mu_t)
-            Sigma_hist = index_update(Sigma_hist, t, Sigma_t)
+            return (mu_t, Sigma_t), (mu_t, Sigma_t)
+
+        _, (mu_hist, Sigma_hist) = scan(filter_step, (initial_mu_t, initial_Sigma_t), (observations, sample_obs))
+
+        mu_hist = jnp.vstack([initial_mu_t, mu_hist])
+        Sigma_hist = jnp.vstack([initial_Sigma_t, Sigma_hist])
 
         return mu_hist, Sigma_hist
