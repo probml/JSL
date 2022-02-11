@@ -6,14 +6,14 @@
 # the die was biased.
 # Original matlab code: https://github.com/probml/pmtk3/blob/master/demos/casinoDemo.m
 
-
-from jsl.hmm.hmm_lib import (HMMNumpy, hmm_sample_numpy, 
-                                  hmm_forwards_backwards_numpy, hmm_viterbi_numpy)
+from jsl.hmm.hmm_numpy_lib import (HMMNumpy, hmm_sample_numpy,
+                                   hmm_forwards_backwards_numpy, hmm_viterbi_numpy)
 
 from jsl.hmm.hmm_utils import hmm_plot_graphviz
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 def find_dishonest_intervals(z_hist):
     """
@@ -37,6 +37,7 @@ def find_dishonest_intervals(z_hist):
         elif z_hist[t + 1] == 1 and z_hist[t] == 0:
             x_init = t + 1
     return spans
+
 
 def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
     """
@@ -68,9 +69,10 @@ def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
     for span in spans:
         ax.axvspan(*span, alpha=0.5, facecolor="tab:gray", edgecolor="none")
     ax.set_xlim(1, n_samples)
-    #ax.set_ylim(0, 1)
+    # ax.set_ylim(0, 1)
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlabel("Observation number")
+
 
 def main():
     # state transition matrix
@@ -81,8 +83,8 @@ def main():
 
     # observation matrix
     B = np.array([
-        [1/6, 1/6, 1/6, 1/6, 1/6, 1/6], # fair die
-        [1/10, 1/10, 1/10, 1/10, 1/10, 5/10] # loaded die
+        [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6],  # fair die
+        [1 / 10, 1 / 10, 1 / 10, 1 / 10, 1 / 10, 5 / 10]  # loaded die
     ])
 
     n_samples = 300
@@ -104,7 +106,7 @@ def main():
     z_map = hmm_viterbi_numpy(params, x_hist)
 
     dict_figures = {}
-    
+
     # Plot results
     fig, ax = plt.subplots()
     plot_inference(alpha, z_hist, ax)
@@ -125,15 +127,17 @@ def main():
     dict_figures["hmm_casino_map"] = fig
 
     file_name = "hmm_casino_params"
-    states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
+    states, observations = ["Fair Dice", "Loaded Dice"], [str(i + 1) for i in range(B.shape[1])]
     dotfile = hmm_plot_graphviz(A, B, init_state_dist, file_name, states, observations)
-    #dotfile = hmm_plot_graphviz(params, file_name, states, observations)
+    # dotfile = hmm_plot_graphviz(params, file_name, states, observations)
     dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
     return dict_figures, dotfile_dict
 
+
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig, savedotfile
+
     figs, dotfile = main()
     savefig(figs)
     savedotfile(dotfile)

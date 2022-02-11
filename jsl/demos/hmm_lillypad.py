@@ -17,6 +17,7 @@ from jax.random import PRNGKey
 
 logging.getLogger('absl').setLevel(logging.CRITICAL)
 
+
 def plot_2dhmm(hmm, samples_obs, samples_state, colors, ax, xmin, xmax, ymin, ymax, step=1e-2):
     """
     Plot the trajectory of a 2-dimensional HMM
@@ -56,6 +57,7 @@ def plot_2dhmm(hmm, samples_obs, samples_state, colors, ax, xmin, xmax, ymin, ym
     ax.scatter(*samples_obs.T, c=color_sample, s=30, zorder=2, alpha=0.8)
 
     return ax, color_sample
+
 
 def main():
     initial_probs = jnp.array([0.3, 0.2, 0.5])
@@ -113,8 +115,10 @@ def main():
 
     return dict_figures
 
+
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     figs = main()

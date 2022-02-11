@@ -6,8 +6,9 @@ import matplotlib.pyplot as plt
 from jax import vmap, jit
 from jax.random import split, randint, PRNGKey, permutation
 from functools import partial
-#!pip install graphviz
+# !pip install graphviz
 from graphviz import Digraph
+
 
 @partial(jit, static_argnums=(2,))
 def hmm_sample_minibatches(observations, valid_lens, batch_size, rng_key):
@@ -48,7 +49,7 @@ def hmm_sample_minibatches(observations, valid_lens, batch_size, rng_key):
 
 
 @partial(jit, static_argnums=(1, 2, 3))
-def hmm_sample_n(params, sample_fn,  n, max_len, rng_key):
+def hmm_sample_n(params, sample_fn, n, max_len, rng_key):
     '''
     Generates n observation sequences from the given Hidden Markov Model
 
@@ -75,6 +76,7 @@ def hmm_sample_n(params, sample_fn,  n, max_len, rng_key):
     * array(n, max_len)
         Observation sequences
     '''
+
     def sample_(params, n_samples, key):
         return sample_fn(params, n_samples, key)[1]
 
@@ -107,9 +109,11 @@ def pad_sequences(observations, valid_lens, pad_val=0):
     * array(n, max_len)
         Ragged dataset
     '''
+
     def pad(seq, len):
         idx = jnp.arange(1, seq.shape[0] + 1)
         return jnp.where(idx <= len, seq, pad_val)
+
     ragged_dataset = vmap(pad, in_axes=(0, 0))(observations, valid_lens), valid_lens
     return ragged_dataset
 
@@ -137,15 +141,13 @@ def hmm_plot_graphviz(trans_mat, obs_mat, init_dist, file_name, states=[], obser
     dot object, that can be displayed in colab
     """
 
-
-
     n_states, n_obs = obs_mat.shape
 
     dot = Digraph(comment='HMM')
     if not states:
-        states = [f'State {i+1}' for i in range(n_states)]
+        states = [f'State {i + 1}' for i in range(n_states)]
     if not observations:
-        observations = [f'Obs {i+1}' for i in range(n_obs)]
+        observations = [f'Obs {i + 1}' for i in range(n_obs)]
 
     # Creates hidden state nodes
     for i, name in enumerate(states):

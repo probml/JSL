@@ -27,11 +27,14 @@ is pytree. So, they cannot work on a vanilla dataclass. To see more:
 Since the flax.dataclass is registered pytree beforehand, it facilitates to use
 jit, vmap and optimizers on the hidden markov model.
 '''
+
+
 @flax.struct.dataclass
 class HMM:
-  trans_dist: distrax.Distribution
-  obs_dist: distrax.Distribution
-  init_dist: distrax.Distribution
+    trans_dist: distrax.Distribution
+    obs_dist: distrax.Distribution
+    init_dist: distrax.Distribution
+
 
 def logdotexp(u, v, axis=-1):
     '''
@@ -203,7 +206,7 @@ def hmm_backwards_log(params, obs_seq, length=None):
         beta_t = jnp.where(t > length,
                            -jnp.inf + jnp.zeros_like(beta_prev),
                            log_normalize(logsumexp(beta_prev + obs_dist.log_prob(obs_seq[-t + 1]) + trans_dist.logits,
-                                                axis=1))[0])
+                                                   axis=1))[0])
         return beta_t, beta_t
 
     ts = jnp.arange(2, seq_len + 1)

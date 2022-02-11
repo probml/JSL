@@ -7,8 +7,7 @@
 # Original matlab code: https://github.com/probml/pmtk3/blob/master/demos/casinoDemo.m
 
 
-
-#from jsl.hmm.hmm_discrete_lib import (HMMNumpy, hmm_sample_numpy, hmm_plot_graphviz,
+# from jsl.hmm.hmm_numpy_lib import (HMMNumpy, hmm_sample_numpy, hmm_plot_graphviz,
 #                                  hmm_forwards_backwards_numpy, hmm_viterbi_numpy)
 
 from jsl.hmm.hmm_utils import hmm_plot_graphviz
@@ -19,6 +18,7 @@ import matplotlib.pyplot as plt
 import distrax
 from distrax import HMM
 from jax.random import PRNGKey
+
 
 def find_dishonest_intervals(z_hist):
     """
@@ -42,6 +42,7 @@ def find_dishonest_intervals(z_hist):
         elif z_hist[t + 1] == 1 and z_hist[t] == 0:
             x_init = t + 1
     return spans
+
 
 def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
     """
@@ -73,7 +74,7 @@ def plot_inference(inference_values, z_hist, ax, state=1, map_estimate=False):
     for span in spans:
         ax.axvspan(*span, alpha=0.5, facecolor="tab:gray", edgecolor="none")
     ax.set_xlim(1, n_samples)
-    #ax.set_ylim(0, 1)
+    # ax.set_ylim(0, 1)
     ax.set_ylim(-0.1, 1.1)
     ax.set_xlabel("Observation number")
 
@@ -86,21 +87,21 @@ A = jnp.array([
 
 # observation matrix
 B = jnp.array([
-    [1/6, 1/6, 1/6, 1/6, 1/6, 1/6], # fair die
-    [1/10, 1/10, 1/10, 1/10, 1/10, 5/10] # loaded die
+    [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6],  # fair die
+    [1 / 10, 1 / 10, 1 / 10, 1 / 10, 1 / 10, 5 / 10]  # loaded die
 ])
 
 n_samples = 300
 init_state_dist = jnp.array([1, 1]) / 2
-#hmm = HMM(A, B, init_state_dist)
+# hmm = HMM(A, B, init_state_dist)
 
 hmm = HMM(trans_dist=distrax.Categorical(probs=A),
-            init_dist=distrax.Categorical(probs=init_state_dist),
-            obs_dist=distrax.Categorical(probs=B))
+          init_dist=distrax.Categorical(probs=init_state_dist),
+          obs_dist=distrax.Categorical(probs=B))
 
 seed = 314
 z_hist, x_hist = hmm.sample(seed=PRNGKey(seed), seq_len=n_samples)
-#z_hist, x_hist = hmm_sample_numpy(params, n_samples, 314)
+# z_hist, x_hist = hmm_sample_numpy(params, n_samples, 314)
 
 z_hist_str = "".join((np.array(z_hist) + 1).astype(str))[:60]
 x_hist_str = "".join((np.array(x_hist) + 1).astype(str))[:60]
@@ -110,11 +111,11 @@ print(f"x: {x_hist_str}")
 print(f"z: {z_hist_str}")
 
 # Do inference
-#alpha, _, gamma, loglik = hmm_forwards_backwards_numpy(params, x_hist, len(x_hist))
+# alpha, _, gamma, loglik = hmm_forwards_backwards_numpy(params, x_hist, len(x_hist))
 alpha, beta, gamma, loglik = hmm.forward_backward(x_hist)
 print(f"Loglikelihood: {loglik}")
 
-#z_map = hmm_viterbi_numpy(params, x_hist)
+# z_map = hmm_viterbi_numpy(params, x_hist)
 z_map = hmm.viterbi(x_hist)
 
 dict_figures = {}
@@ -139,14 +140,14 @@ ax.set_title("Viterbi")
 dict_figures["hmm_casino_map"] = fig
 
 file_name = "hmm_casino_params"
-states, observations = ["Fair Dice", "Loaded Dice"], [str(i+1) for i in range(B.shape[1])]
+states, observations = ["Fair Dice", "Loaded Dice"], [str(i + 1) for i in range(B.shape[1])]
 
 AA = hmm.trans_dist.probs
 assert np.allclose(A, AA)
 dotfile = hmm_plot_graphviz(A, B, init_state_dist, file_name, states, observations)
 dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
-#return dict_figures, dotfile_dict
+# return dict_figures, dotfile_dict
 
 '''
 if __name__ == "__main__":

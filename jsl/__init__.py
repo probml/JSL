@@ -1,1 +1,1 @@
-from . import lds, nlds, demos
+from . import hmm, lds, nlds, demos

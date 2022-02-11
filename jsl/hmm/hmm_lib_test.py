@@ -7,16 +7,15 @@ Author : Aleyna Kara (@karalleyna)
 
 import time
 
-import jax.numpy as jnp
-from jax.random import PRNGKey, split, uniform
+from jax.random import uniform
 import numpy as np
-from jax import vmap, jit
-from jax.random import split, randint, PRNGKey
+from jax import vmap
+from jax.random import split, PRNGKey
 import jax.numpy as jnp
 
-from jsl.hmm.hmm_lib import HMMJax, HMMNumpy
-from jsl.hmm.hmm_lib import hmm_sample_jax, hmm_forwards_backwards_jax, hmm_forwards_backwards_numpy
-from jsl.hmm.hmm_lib import  hmm_loglikelihood_numpy, hmm_loglikelihood_jax
+from jsl.hmm.hmm_numpy_lib import HMMNumpy, hmm_forwards_backwards_numpy, hmm_loglikelihood_numpy
+from jsl.hmm.hmm_lib import HMMJax
+from jsl.hmm.hmm_lib import hmm_sample_jax, hmm_forwards_backwards_jax, hmm_loglikelihood_jax
 import jsl.hmm.hmm_utils as hmm_utils
 
 import distrax

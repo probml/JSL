@@ -13,10 +13,11 @@ Author: Aleyna Kara(@karalleyna)
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from jax.example_libraries import optimizers
-from jax.random import split, randint, PRNGKey
+from jax.random import split, PRNGKey
 from jsl.hmm.hmm_lib import fit
 from jsl.hmm.hmm_utils import pad_sequences, hmm_sample_n
 from jsl.hmm.hmm_lib import HMMJax, hmm_sample_jax, hmm_plot_graphviz
+
 
 def main():
     # state transition matrix
@@ -26,8 +27,8 @@ def main():
 
     # observation matrix
     B = jnp.array([
-        [1/6, 1/6, 1/6, 1/6, 1/6, 1/6], # fair die
-        [1/10, 1/10, 1/10, 1/10, 1/10, 5/10] # loaded die
+        [1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6, 1 / 6],  # fair die
+        [1 / 10, 1 / 10, 1 / 10, 1 / 10, 1 / 10, 5 / 10]  # loaded die
     ])
 
     pi = jnp.array([1, 1]) / 2
@@ -47,44 +48,44 @@ def main():
 
     # Mini Batch Gradient Descent
     batch_size = 2
-    params_mbgd,losses_mbgd =  fit(observations,
-                                lens,
-                                num_hidden,
-                                num_obs,
-                                batch_size,
-                                optimizer,
-                                rng_key=None,
-                                num_epochs=num_epochs)
+    params_mbgd, losses_mbgd = fit(observations,
+                                   lens,
+                                   num_hidden,
+                                   num_obs,
+                                   batch_size,
+                                   optimizer,
+                                   rng_key=None,
+                                   num_epochs=num_epochs)
 
     # Full Batch Gradient Descent
     batch_size = n_obs_seq
-    params_fbgd,losses_fbgd =  fit(observations,
-                                lens,
-                                num_hidden,
-                                num_obs,
-                                batch_size,
-                                optimizer,
-                                rng_key=None,
-                                num_epochs=num_epochs)
+    params_fbgd, losses_fbgd = fit(observations,
+                                   lens,
+                                   num_hidden,
+                                   num_obs,
+                                   batch_size,
+                                   optimizer,
+                                   rng_key=None,
+                                   num_epochs=num_epochs)
 
     # Stochastic Gradient Descent
     batch_size = 1
-    params_sgd,losses_sgd =  fit(observations,
-                                lens,
-                                num_hidden,
-                                num_obs,
-                                batch_size,
-                                optimizer,
-                                rng_key=None,
-                                num_epochs=num_epochs)
+    params_sgd, losses_sgd = fit(observations,
+                                 lens,
+                                 num_hidden,
+                                 num_obs,
+                                 batch_size,
+                                 optimizer,
+                                 rng_key=None,
+                                 num_epochs=num_epochs)
 
-    losses = [ losses_sgd, losses_mbgd, losses_fbgd]
-    titles = [ "Stochastic Gradient Descent", "Mini Batch Gradient Descent", "Full Batch Gradient Descent"]
+    losses = [losses_sgd, losses_mbgd, losses_fbgd]
+    titles = ["Stochastic Gradient Descent", "Mini Batch Gradient Descent", "Full Batch Gradient Descent"]
 
     dict_figures = {}
     for loss, title in zip(losses, titles):
         filename = title.replace(" ", "_").lower()
-        fig, ax  = plt.subplots()
+        fig, ax = plt.subplots()
         ax.plot(loss)
         ax.set_title(f"{title}")
         dict_figures[filename] = fig
@@ -93,8 +94,10 @@ def main():
 
     return dict_figures, dotfile_dict
 
+
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig, savedotfile
+
     figs, dotfile = main()
     savefig(figs)
     savedotfile(dotfile)
