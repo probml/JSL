@@ -695,37 +695,6 @@ def loss_fn(params, batch, lens):
     return -hmm_loglikelihood_jax(params_soft, batch, lens).mean()
 
 
-@jit
-def update(i, opt_state, batch, lens):
-    """
-    Objective function of hidden markov models for discrete observations. It returns the mean of the negative
-    loglikelihood of the sequence of observations
-
-    Parameters
-    ----------
-    i : int
-        Specifies the current iteration
-
-    opt_state : OptimizerState
-
-    batch: array(N, max_len)
-        Minibatch consisting of observation sequences
-
-    lens : array(N, seq_len)
-        Consists of the valid length of each observation sequence in the minibatch
-
-    Returns
-    -------
-    * OptimizerState
-
-    * float
-        The mean negative loglikelihood of the minibatch, i.e. loss value for the current iteration.
-    """
-    params = get_params(opt_state)
-    loss, grads = jax.value_and_grad(loss_fn)(params, batch, lens)
-    return opt_update(i, grads, opt_state), loss
-
-
 def fit(observations, lens, num_hidden, num_obs, batch_size, optimizer, rng_key=None, num_epochs=1):
     """
     Trains the HMM model with the given number of hidden states and observations via any optimizer.
@@ -761,16 +730,45 @@ def fit(observations, lens, num_hidden, num_obs, batch_size, optimizer, rng_key=
     * array
       Consists of training losses
     """
-    global opt_init, opt_update, get_params
-
     if rng_key is None:
         rng_key = PRNGKey(0)
 
     rng_init, rng_iter = split(rng_key)
     params = init_random_params([num_hidden, num_obs], rng_init)
     opt_init, opt_update, get_params = optimizer
+
     opt_state = opt_init(params)
     itercount = itertools.count()
+
+    @jit
+    def update(i, opt_state, batch, lens):
+        """
+        Objective function of hidden markov models for discrete observations. It returns the mean of the negative
+        loglikelihood of the sequence of observations
+
+        Parameters
+        ----------
+        i : int
+            Specifies the current iteration
+
+        opt_state : OptimizerState
+
+        batch: array(N, max_len)
+            Minibatch consisting of observation sequences
+
+        lens : array(N, seq_len)
+            Consists of the valid length of each observation sequence in the minibatch
+
+        Returns
+        -------
+        * OptimizerState
+
+        * float
+            The mean negative loglikelihood of the minibatch, i.e. loss value for the current iteration.
+        """
+        params = get_params(opt_state)
+        loss, grads = jax.value_and_grad(loss_fn)(params, batch, lens)
+        return opt_update(i, grads, opt_state), loss
 
     def epoch_step(opt_state, key):
         def train_step(opt_state, params):

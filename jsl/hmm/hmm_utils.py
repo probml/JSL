@@ -118,17 +118,13 @@ def pad_sequences(observations, valid_lens, pad_val=0):
     return ragged_dataset
 
 
-def hmm_plot_graphviz(trans_mat, obs_mat, init_dist, file_name, states=[], observations=[]):
+def hmm_plot_graphviz(trans_mat, obs_mat, states=[], observations=[]):
     """
     Visualizes HMM transition matrix and observation matrix using graphhiz.
 
     Parameters
     ----------
     trans_mat, obs_mat, init_dist: arrays
-
-    file_name : str
-        Name of file which stores the output.
-        The function creates file_name.pdf and file_name; the latter is a .dot text file.
 
     states: List(num_hidden)
         Names of hidden states

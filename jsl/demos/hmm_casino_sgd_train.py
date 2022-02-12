@@ -16,7 +16,8 @@ from jax.example_libraries import optimizers
 from jax.random import split, PRNGKey
 from jsl.hmm.hmm_lib import fit
 from jsl.hmm.hmm_utils import pad_sequences, hmm_sample_n
-from jsl.hmm.hmm_lib import HMMJax, hmm_sample_jax, hmm_plot_graphviz
+from jsl.hmm.hmm_lib import HMMJax, hmm_sample_jax
+from jsl.hmm.hmm_utils import hmm_plot_graphviz
 
 
 def main():
@@ -89,7 +90,7 @@ def main():
         ax.plot(loss)
         ax.set_title(f"{title}")
         dict_figures[filename] = fig
-    dotfile = hmm_plot_graphviz(params_sgd, "hmm_casino_sgd_train")
+    dotfile = hmm_plot_graphviz(params_sgd.trans_mat, params_sgd.trans_mat)
     dotfile_dict = {"hmm-casino-dot": dotfile}
 
     return dict_figures, dotfile_dict

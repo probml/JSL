@@ -144,7 +144,7 @@ states, observations = ["Fair Dice", "Loaded Dice"], [str(i + 1) for i in range(
 
 AA = hmm.trans_dist.probs
 assert np.allclose(A, AA)
-dotfile = hmm_plot_graphviz(A, B, init_state_dist, file_name, states, observations)
+dotfile = hmm_plot_graphviz(A, B, states, observations)
 dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
 # return dict_figures, dotfile_dict

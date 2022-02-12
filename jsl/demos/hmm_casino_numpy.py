@@ -128,7 +128,7 @@ def main():
 
     file_name = "hmm_casino_params"
     states, observations = ["Fair Dice", "Loaded Dice"], [str(i + 1) for i in range(B.shape[1])]
-    dotfile = hmm_plot_graphviz(A, B, init_state_dist, file_name, states, observations)
+    dotfile = hmm_plot_graphviz(A, B, states, observations)
     # dotfile = hmm_plot_graphviz(params, file_name, states, observations)
     dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
