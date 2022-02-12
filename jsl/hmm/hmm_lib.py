@@ -28,18 +28,6 @@ import superimport
 import flax
 
 '''
-Hidden Markov Model class used in numpy implementations of inference algorithms.
-'''
-
-
-@dataclass
-class HMMNumpy:
-    trans_mat: np.array  # A : (n_states, n_states)
-    obs_mat: np.array  # B : (n_states, n_obs)
-    init_dist: np.array  # pi : (n_states)
-
-
-'''
 Hidden Markov Model class used in jax implementations of inference algorithms.
 
 The functions of optimizers expect that the type of its parameters 
