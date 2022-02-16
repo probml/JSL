@@ -9,9 +9,9 @@ from jax import random
 import flax.linen as nn
 from typing import Sequence, Callable
 
-import foo_vb_utils_copy as utils
-import foo_vb_datasets as ds
-import foo_vb_lib_copy as  foo_vb_lib
+import foo_vb_lib
+import datasets as ds
+import run
 
 import ml_collections
 
@@ -67,13 +67,13 @@ if __name__ == '__main__':
   image_size = 784
   n_permutations = 10
 
-  perm_lst = utils.create_random_perm(perm_key, image_size, n_permutations)
+  perm_lst = foo_vb_lib.create_random_perm(perm_key, image_size, n_permutations)
   perm_lst = perm_lst[1:11]
   train_loaders, test_loaders = ds.ds_padded_cont_permuted_mnist(num_epochs=int(config.epochs*config.tasks), iterations_per_virtual_epc=config.iterations_per_virtual_epc,
                                                                   contpermuted_beta=4, permutations=perm_lst,
                                                                   batch_size=config.batch_size)
 
                                                       
-  ava_test = foo_vb_lib.train_continuous_mnist(key, model, train_loaders,
+  ava_test = run.train_continuous_mnist(key, model, train_loaders,
                             test_loaders, image_size, n_permutations, config)
   print(ava_test)

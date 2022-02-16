@@ -12,7 +12,7 @@ import jax.numpy as jnp
 
 from functools import partial
 
-import foo_vb_utils_copy as utils
+import foo_vb_lib
 
 def scan(f, init, xs, length=None):
     if xs is None:
@@ -28,7 +28,7 @@ def init_step(key, model, image_size, config):
     model_key, param_key = random.split(key) 
     variables = model.init(model_key, jnp.zeros((config.batch_size, image_size)))
     params = tree_map(jnp.transpose, variables)
-    lists = utils.init_param(param_key, params, config.s_init, True, config.alpha)
+    lists = foo_vb_lib.init_param(param_key, params, config.s_init, True, config.alpha)
     return lists
 
 
@@ -39,17 +39,17 @@ def train_step(key, lsts, data, target, value_and_grad_fn, train_mc_iters, eta, 
             # Phi ~ MN(0,I,I)
             avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst = agg_lsts
             phi_key, key = random.split(key)
-            phi_mat_lst = utils.gen_phi(phi_key, w_mat_lst)
+            phi_mat_lst = foo_vb_lib.gen_phi(phi_key, w_mat_lst)
             
             # W = M +B*Phi*A^t
-            params = utils.randomize_weights(m_mat_lst, a_mat_lst, b_mat_lst, phi_mat_lst)
+            params = foo_vb_lib.randomize_weights(m_mat_lst, a_mat_lst, b_mat_lst, phi_mat_lst)
             loss, grads = value_and_grad_fn(tree_map(jnp.transpose, params), data, target)
-            grad_mat_lst = utils.weight_grad(grads)
-            avg_psi_mat_lst = utils.aggregate_grads(avg_psi_mat_lst, grad_mat_lst, train_mc_iters)
-            e_a_mat_lst = utils.aggregate_e_a(e_a_mat_lst, grad_mat_lst, b_mat_lst,
+            grad_mat_lst = foo_vb_lib.weight_grad(grads)
+            avg_psi_mat_lst = foo_vb_lib.aggregate_grads(avg_psi_mat_lst, grad_mat_lst, train_mc_iters)
+            e_a_mat_lst = foo_vb_lib.aggregate_e_a(e_a_mat_lst, grad_mat_lst, b_mat_lst,
                             phi_mat_lst, train_mc_iters)
             
-            e_b_mat_lst = utils.aggregate_e_b(e_b_mat_lst, grad_mat_lst, a_mat_lst,
+            e_b_mat_lst = foo_vb_lib.aggregate_e_b(e_b_mat_lst, grad_mat_lst, a_mat_lst,
                                 phi_mat_lst, train_mc_iters)
             
             return (avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst), loss
@@ -60,9 +60,9 @@ def train_step(key, lsts, data, target, value_and_grad_fn, train_mc_iters, eta, 
         
         print("Loss :", losses.mean())
         
-        m_mat_lst = utils.update_m(m_mat_lst, a_mat_lst, b_mat_lst, avg_psi_mat_lst, eta, diagonal=diagonal)
-        a_mat_lst, b_mat_lst = utils.update_a_b(a_mat_lst, b_mat_lst, e_a_mat_lst, e_b_mat_lst)
-        avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst = utils.zero_matrix(avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst)
+        m_mat_lst = foo_vb_lib.update_m(m_mat_lst, a_mat_lst, b_mat_lst, avg_psi_mat_lst, eta, diagonal=diagonal)
+        a_mat_lst, b_mat_lst = foo_vb_lib.update_a_b(a_mat_lst, b_mat_lst, e_a_mat_lst, e_b_mat_lst)
+        avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst = foo_vb_lib.zero_matrix(avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst)
         
         lists = w_mat_lst, m_mat_lst, a_mat_lst, b_mat_lst, avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst
         
@@ -73,8 +73,8 @@ def eval_step(model, lsts, data, target, train_mc_iters):
     w_mat_lst, m_mat_lst, a_mat_lst, b_mat_lst, avg_psi_mat_lst, e_a_mat_lst, e_b_mat_lst = lsts 
 
     def monte_carlo_step(w_mat_lst, phi_key):
-        phi_mat_lst = utils.gen_phi(phi_key, w_mat_lst)
-        params = utils.randomize_weights(m_mat_lst, a_mat_lst, b_mat_lst, phi_mat_lst)
+        phi_mat_lst = foo_vb_lib.gen_phi(phi_key, w_mat_lst)
+        params = foo_vb_lib.randomize_weights(m_mat_lst, a_mat_lst, b_mat_lst, phi_mat_lst)
         output = model.apply(tree_map(jnp.transpose, params), data)
         # get the index of the max log-probability
         pred = jnp.argmax(output, axis=1)
@@ -92,7 +92,7 @@ def train_continuous_mnist(key, model, train_loader,
 
     init_key, key = random.split(key)
     lists = init_step(key, model, image_size, config)
-    criterion = partial(utils.cross_entropy_loss,
+    criterion = partial(foo_vb_lib.cross_entropy_loss,
                         num_classes=num_classes,
                         predict_fn=model.apply)
     
@@ -147,7 +147,7 @@ def train_multiple_tasks( key, model, train_loader,
     
     init_key, key = random.split(key)
     lists = init_step(key, model, config)    
-    criterion = partial(utils.cross_entropy_loss,
+    criterion = partial(foo_vb_lib.cross_entropy_loss,
                         num_classes=num_classes, predict_fn=model.apply)
     
     grad_fn = value_and_grad(criterion)
