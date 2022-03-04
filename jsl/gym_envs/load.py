@@ -1,6 +1,6 @@
 """Loading a leaderboard instance for the testbed."""
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import chex
 import haiku as hk

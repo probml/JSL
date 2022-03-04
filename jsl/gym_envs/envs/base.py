@@ -1,3 +1,6 @@
+# It is based on
+# https://github.com/deepmind/neural_testbed/blob/master/neural_testbed/generative/classification_envlikelihood.py
+# Includes classification-based and regression-based testbed based around a logit_fn, fit_fn and x_generator.
 
 import jax
 import jax.numpy as jnp
@@ -16,8 +19,6 @@ import jax.numpy as jnp
 import chex
 
 
-
-
 @dataclasses.dataclass(frozen=True)
 class PriorKnowledge:
   """What an agent knows a priori about the problem."""
@@ -30,6 +31,10 @@ class PriorKnowledge:
   temperature: Optional[float] = 1
   extra: Optional[Dict[str, Any]] = None
 
+
+def mean_squared_error(pred: chex.Array, target: chex.Array):
+    err = pred - target
+    return jnp.mean(jnp.square(err))  # mse
 
 def categorical_log_likelihood(probs: chex.Array, labels: chex.Array):
   """Computes joint log likelihood based on probs and labels."""
@@ -71,24 +76,41 @@ def sample_gaussian_data(logit_fn: Callable,
   # Compute the log likelihood with respect to the environment
   log_likelihood = categorical_log_likelihood(train_probs, y_train)
   
-  return data, log_likelihood
+  return data, train_probs, log_likelihood
+
+def sample_gaussian_reg_data(logit_fn: Callable,
+                         x_generator: Callable,
+                         num_train: int,
+                         key: chex.PRNGKey):
+                
+  """Generates training data for given problem."""
+  x_key, y_key = random.split(key, 2)
+
+  # Checking the dimensionality of our data coming in.
+  x_train = x_generator(x_key, num_train)
+
+  input_dim = x_train.shape[1]
+  
+  chex.assert_shape(x_train, [num_train, input_dim])
+
+  # Generate environment function across x_train
+  y_train = logit_fn(x_train)  # [n_train, n_class]
+
+  data = (x_train, y_train)
+
+  return data
 
 def make_gaussian_sampler(input_dim: int):
   def gaussian_generator(key: chex.PRNGKey, num_samples: int) -> chex.Array:
     return random.normal(key, [num_samples, input_dim])
   return gaussian_generator
 
-def cosine_similarity(x, y):
-  cos_sim = jnp.dot(x, y)/(jnp.linalg.norm(x)*jnp.linalg.norm(y))
-  return cos_sim
-
-
 def make_mlp_logit_fn(
     input_dim: int,
     temperature: float,
     hidden: int,
     num_classes: int,
-    key: chex.PRNGKey,
+    key: chex.PRNGKey
 ):
   """Factory method to create a generative model around a 2-layer MLP."""
 

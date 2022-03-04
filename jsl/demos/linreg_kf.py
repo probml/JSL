@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from numpy.linalg import inv
 from jax.lax import scan
 import jax.numpy as jnp
-from jsl.lds.kalman_filter import KalmanFilter
+from ..lds.kalman_filter import KalmanFilter
 
 
 def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
@@ -42,10 +42,18 @@ def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
     * array(n_obs, dimension, dimension)
         Online estimation of uncertainty
     """
-    n_obs, dim = X.shape
-    C = lambda t: X[t][None, ...]
-    kf = KalmanFilter(F, C, Q, R, mu0.copy(), Sigma0.copy(), timesteps=n_obs)
-    _, (mu_hist, Sigma_hist, _, _) = scan(kf.kalman_step, (mu0.copy(), Sigma0.copy(), 0), y)
+    if  len(X.shape)<2:
+        raise TypeError("The dimension of feature matrix should be greater than or equal to 2.")
+    elif len(X.shape)==2:
+        n_obs, dim = X.shape
+        C = lambda t: X[t][None, ...]
+        kf = KalmanFilter(F, C, Q, R, mu0.copy(), Sigma0.copy(), timesteps=n_obs)
+        _, (mu_hist, Sigma_hist, _, _) = scan(kf.kalman_step, (mu0.copy(), Sigma0.copy(), 0), y)
+
+    else:
+        n_obs, dim = X.shape
+        C = lambda t: X[t][None, ...]
+
     return mu_hist, Sigma_hist
 
 

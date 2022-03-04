@@ -11,8 +11,8 @@ import jax
 
 import numpy as np
 
-import classification_env
-from base import PriorKnowledge, make_gaussian_sampler
+import gym_envs.envs.classification_env as classification_env
+from gym_envs.envs.base import PriorKnowledge, make_gaussian_sampler
 
 class MLPClassificationEnsembleTest(parameterized.TestCase):
 
