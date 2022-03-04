@@ -11,25 +11,11 @@ import haiku as hk
 
 import chex
 
-from typing import Any, Dict, Optional, Callable
-import dataclasses
+from typing import Union, List, Callable
 
 import jax.numpy as jnp
 
 import chex
-
-
-@dataclasses.dataclass(frozen=True)
-class PriorKnowledge:
-  """What an agent knows a priori about the problem."""
-  input_dim: int
-  num_train: int
-  tau: int
-  num_classes: int = 1
-  hidden: Optional[int] = None
-  noise_std: Optional[float] = None
-  temperature: Optional[float] = 1
-  extra: Optional[Dict[str, Any]] = None
 
 
 def mean_squared_error(pred: chex.Array, target: chex.Array):
@@ -43,8 +29,7 @@ def categorical_log_likelihood(probs: chex.Array, labels: chex.Array):
   assigned_probs = probs[jnp.arange(num_data), jnp.squeeze(labels)]
   return jnp.sum(jnp.log(assigned_probs))
 
-
-def sample_gaussian_data(logit_fn: Callable,
+def sample_gaussian_cls_data(apply_fn: Callable,
                          x_generator: Callable,
                          num_train: int,
                          key: chex.PRNGKey):
@@ -60,7 +45,7 @@ def sample_gaussian_data(logit_fn: Callable,
   chex.assert_shape(x_train, [num_train, input_dim])
 
   # Generate environment function across x_train
-  train_logits = logit_fn(x_train)  # [n_train, n_class]
+  train_logits = apply_fn(x_train)  # [n_train, n_class]
   num_classes = train_logits.shape[-1]  # Obtain from logit_fn.
   chex.assert_shape(train_logits, [num_train, num_classes])
   train_probs = nn.softmax(train_logits)
@@ -78,93 +63,74 @@ def sample_gaussian_data(logit_fn: Callable,
   
   return data, train_probs, log_likelihood
 
-def sample_gaussian_reg_data(logit_fn: Callable,
+def sample_gaussian_reg_data(apply_fn: Callable,
                          x_generator: Callable,
                          num_train: int,
                          key: chex.PRNGKey):
                 
   """Generates training data for given problem."""
-  x_key, y_key = random.split(key, 2)
-
   # Checking the dimensionality of our data coming in.
-  x_train = x_generator(x_key, num_train)
+  x_train = x_generator(key, num_train)
 
-  input_dim = x_train.shape[1]
-  
+  input_dim = x_train.shape[1]  
   chex.assert_shape(x_train, [num_train, input_dim])
 
   # Generate environment function across x_train
-  y_train = logit_fn(x_train)  # [n_train, n_class]
+  y_train = apply_fn(x_train)  # [n_train, n_class]
 
   data = (x_train, y_train)
 
-  return data
+  return data, None, None
 
 def make_gaussian_sampler(input_dim: int):
   def gaussian_generator(key: chex.PRNGKey, num_samples: int) -> chex.Array:
     return random.normal(key, [num_samples, input_dim])
   return gaussian_generator
 
-def make_mlp_logit_fn(
+def make_mlp_apply_fn(
     input_dim: int,
+    output_dim: int,
     temperature: float,
-    hidden: int,
-    num_classes: int,
-    key: chex.PRNGKey
-):
-  """Factory method to create a generative model around a 2-layer MLP."""
+    hidden_layer_sizes: Union[int, List[int], None],
+    key: chex.PRNGKey):
+  """Factory method to create a generative model MLP."""
+  
+  hidden_layer_sizes = [hidden_layer_sizes] if type(hidden_layer_sizes)==int else hidden_layer_sizes
+
+  def linear_fn(x: chex.Array):
+    """Defining the generative model Linear."""
+    return hk.Linear(output_dim)(x)
 
   # Generating the logit function
   def net_fn(x: chex.Array):
     """Defining the generative model MLP."""
+    
+    hidden = hidden_layer_sizes[0]
     y = hk.Linear(
         output_size=hidden,
         b_init=hk.initializers.RandomNormal(1./jnp.sqrt(input_dim)),
     )(x)
     y = jax.nn.relu(y)
-    y = hk.Linear(hidden)(y)
-    y = jax.nn.relu(y)
-    return hk.Linear(num_classes)(y)
 
-  transformed = hk.without_apply_rng(hk.transform(net_fn))
+    for hidden in hidden_layer_sizes[1:]:
+      y = hk.Linear(hidden_layer_sizes)(y)
+      y = jax.nn.relu(y)
+    return hk.Linear(output_dim)(y)
+  
+  if hidden_layer_sizes:
+    transformed = hk.without_apply_rng(hk.transform(net_fn))
+  else:
+    transformed = hk.without_apply_rng(hk.transform(linear_fn))
+
   dummy_input = jnp.zeros([1, input_dim])
   params = transformed.init(key, dummy_input)
 
   def forward(x: chex.Array):
     return transformed.apply(params, x) / temperature
 
-  logit_fn = jax.jit(forward)
+  apply_fn = jax.jit(forward)
 
-  return logit_fn
-
-
-def make_linear_logit_fn(
-    input_dim: int,
-    temperature: float,
-    num_classes: int,
-    key: chex.PRNGKey,
-):
-  """Factory method to create a generative model around a 2-layer MLP."""
-
-  # Generating the logit function
-  def net_fn(x: chex.Array):
-    """Defining the generative model MLP."""
-    y = hk.Linear(
-        output_size=num_classes,
-        b_init=hk.initializers.RandomNormal(1./jnp.sqrt(input_dim)),
-    )(x)
-    return y
-
-  transformed = hk.without_apply_rng(hk.transform(net_fn))
-  dummy_input = jnp.zeros([1, input_dim])
-  params = transformed.init(key, dummy_input)
-
-  def forward(x: chex.Array):
-    return transformed.apply(params, x) / temperature
-
-  logit_fn = jax.jit(forward)
-
-  return logit_fn
+  return apply_fn
 
 
 def make_poly_fit_fn(

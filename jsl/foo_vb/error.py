@@ -1,33 +1,12 @@
-from jax.config import config
-config.update("jax_enable_x64", True)
-
-from jax.config import config
-config.update("jax_debug_nans", True)
-
-from jax import random, value_and_grad, tree_map, vmap, lax, jit
+from jax import random, vmap
 import jax.numpy as jnp
-
-import flax.linen as nn
-from typing import Sequence, Callable
-
-import ml_collections
 
 import torchvision.transforms as transforms
 import torchvision
 import torch
 import numpy as np
-import os
-import codecs
 from torch.distributions.categorical import Categorical
-import torch.utils.data as data
-from PIL import Image
-import errno
 
-from functools import partial
-from random import randint
-
-
-@partial(jit, static_argnums=(1, 2))
 def create_random_perm(key, image_size, n_permutations):
     """
         This function returns a list of array permutation (size of 28*28 = 784) to create permuted MNIST data.
@@ -36,6 +15,7 @@ def create_random_perm(key, image_size, n_permutations):
         :return permutations: a list of permutations.
     """
     initial_array = jnp.arange(image_size)
+        
     keys = random.split(key, n_permutations - 1)
 
     def permute(key):
@@ -95,17 +75,6 @@ def _get_linear_line(start, end, direction="up"):
 
 
 class ContinuousMultinomialSampler(torch.utils.data.Sampler):
-    r"""Samples elements randomly. If without replacement, then sample from a shuffled dataset.
-    If with replacement, then user can specify ``num_samples`` to draw.
-    self.tasks_probs_over_iterations is the probabilities of tasks over iterations.
-    self.samples_distribution_over_time is the actual distribution of samples over iterations
-                                            (the result of sampling from self.tasks_probs_over_iterations).
-    Arguments:
-        data_source (Dataset): dataset to sample from
-        num_samples (int): number of samples to draw, default=len(dataset)
-        replacement (bool): samples are drawn with replacement if ``True``, default=False
-    """
-
     def __init__(self, data_source, samples_in_batch=128, num_of_batches=69, tasks_samples_indices=None,
                  tasks_probs_over_iterations=None):
         self.data_source = data_source
@@ -179,21 +148,12 @@ class DatasetsLoaders:
 
         pin_memory = pin_memory if torch.cuda.is_available() else False
         self.batch_size = batch_size
-        
-        mnist_mean = [33.318421449829934]
-        mnist_std = [78.56749083061408]
 
 
         if dataset == "CONTPERMUTEDPADDEDMNIST":
             transform = transforms.Compose(
                 [transforms.ToTensor(),
                  transforms.Normalize((0.1307,), (0.3081,))])
-            '''
-            transform = transforms.Compose(
-                [transforms.Pad(2, fill=0, padding_mode='constant'),
-                 transforms.ToTensor(),
-                 transforms.Normalize(mean=(0.1000,), std=(0.2752,))])
-            '''
 
             # Original MNIST
             tasks_datasets = [torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)]
@@ -299,33 +259,24 @@ def error_fn(train_loader, test_loader, epochs):
                 continue
 
 
-def get_config():
-    """Get the default hyperparameter configuration."""
-    config = ml_collections.ConfigDict()
-
-    config.batch_size = 128
-    config.epochs = 20
-    config.alpha = 0.6
-    config.tasks = 10
-    config.iterations_per_virtual_epc = 468
-
-    return config
-
-
-if __name__ == '__main__':
-    config = get_config()
-    
+if __name__ == '__main__':    
     key = random.PRNGKey(0)
     perm_key, key = random.split(key)
 
     image_size = 784
     n_permutations = 10
 
+    batch_size = 128
+    epochs = 20
+    alpha = 0.6
+    tasks = 10
+    iterations_per_virtual_epc = 468
+
     permutations = create_random_perm(perm_key, image_size, n_permutations)
     permutations = permutations[1:11]
-    train_loaders, test_loaders = ds_padded_cont_permuted_mnist(num_epochs=int(config.epochs * config.tasks),
-                                                                   iterations_per_virtual_epc=config.iterations_per_virtual_epc,
+    train_loaders, test_loaders = ds_padded_cont_permuted_mnist(num_epochs=int(epochs * tasks),
+                                                                   iterations_per_virtual_epc=iterations_per_virtual_epc,
                                                                    contpermuted_beta=4, permutations=permutations,
-                                                                   batch_size=config.batch_size)
+                                                                   batch_size=batch_size)
 
-    error_fn(train_loaders, test_loaders, config.epochs)
+    error_fn(train_loaders, test_loaders, epochs)

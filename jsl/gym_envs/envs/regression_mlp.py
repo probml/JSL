@@ -64,7 +64,7 @@ class ClassificationMLP(Env):
 
     if override_train_data is None:
       nsamples = num_steps * train_batch_size
-      (x_train, y_train), _ = base.sample_gaussian_data(
+      (x_train, y_train), _ = base.sample_gaussian_cls_data(
           fit_fn, x_train_generator,
           nsamples, next(rng))
       self.x_train = x_train.reshape((-1, train_batch_size, input_dim))
@@ -81,7 +81,7 @@ class ClassificationMLP(Env):
       self.train_data = (x_train, y_train)
 
 
-    (x_test, y_test), _ = base.sample_gaussian_data(
+    (x_test, y_test), _ = base.sample_gaussian_cls_data(
             fit_fn, x_train_generator,
             nsamples, next(rng))
     self.x_test = x_test.reshape((-1, test_batch_size, input_dim))
@@ -140,7 +140,7 @@ class ClassificationMLP(Env):
       Tuple of data (with tau examples) and log-likelihood under posterior.
     """
     def sample_test(k: chex.PRNGKey):
-      return base.sample_gaussian_data(
+      return base.sample_gaussian_cls_data(
           self.fit_fn, self.x_test_generator, self.tau, key=k)
     return jit(sample_test)(key)
 

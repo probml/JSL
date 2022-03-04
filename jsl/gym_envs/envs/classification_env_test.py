@@ -11,8 +11,8 @@ import jax
 
 import numpy as np
 
-import gym_envs.envs.classification_env as classification_env
-from gym_envs.envs.base import PriorKnowledge, make_gaussian_sampler
+import envs.classification_env as classification_env
+from envs.base import PriorKnowledge, make_gaussian_sampler
 
 class MLPClassificationEnsembleTest(parameterized.TestCase):
 
@@ -34,11 +34,11 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
 
         prior_knowledge = PriorKnowledge(input_dim, num_steps, tau, num_classes=num_class, hidden=10)
         mlp_model = classification_env.ClassificationEnv(
-            logit_fn=logit_fn,
+            apply_fn=logit_fn,
             x_train_generator=x_train_generator,
             x_test_generator=x_test_generator,
             prior_knowledge=prior_knowledge,
-            num_steps=2,
+            nsteps=2,
             train_batch_size=train_batch_size,
             test_batch_size=test_batch_size,
             key=next(rng)
@@ -89,13 +89,13 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
         prior_knowledge = PriorKnowledge(input_dim, num_steps, tau, num_classes=num_class, hidden=10)
 
         mlp_model = classification_env.ClassificationEnv(
-            logit_fn=logit_fn,
+            apply_fn=logit_fn,
             x_train_generator=x_train_generator,
             x_test_generator=x_test_generator,
             prior_knowledge=prior_knowledge,
             train_batch_size=train_batch_size,
             test_batch_size=test_batch_size,
-            num_steps=num_steps,
+            nsteps=num_steps,
             key=next(rng),
         )
 
@@ -129,13 +129,13 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
             params = fn_transformed.init(next(rng), np.zeros(shape=(input_dim,)))
             logit_fn = functools.partial(fn_transformed.apply, params)
             mlp_model = classification_env.ClassificationEnv(
-                logit_fn=logit_fn,
+                apply_fn=logit_fn,
                 x_train_generator=x_train_generator,
                 x_test_generator=x_test_generator,
                 prior_knowledge=prior_knowledge,
                 train_batch_size=train_batch_size,
                 test_batch_size=test_batch_size,
-                num_steps=num_train,
+                nsteps=num_train,
                 key=next(rng),
             )
 
