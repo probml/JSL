@@ -140,8 +140,8 @@ def aggregate_e_a(e_a, grads, b, phi, train_mc_iters):
     """
 
     for k, v in grads.items():
-        b, phi = b[k], phi[k]
-        e_a[k] += (1 / (train_mc_iters * b.shape[0])) * ((v.T @ b) @ phi)
+        b_, phi_ = b[k], phi[k]
+        e_a[k] += (1 / (train_mc_iters * b_.shape[0])) * ((v.T @ b_) @ phi_)
     return e_a
 
 
@@ -157,8 +157,8 @@ def aggregate_e_b(e_b, grads, a, phi, train_mc_iters):
         :return:
     """
     for k, v in grads.items():
-        a, phi = a[k], phi[k]
-        e_b[k] += (1 / (train_mc_iters * a.shape[0])) * ((v @ a) @ phi.T)
+        a_, phi_ = a[k], phi[k]
+        e_b[k] += (1 / (train_mc_iters * a_.shape[0])) * ((v @ a_) @ phi_.T)
     return e_b
 
 
@@ -253,16 +253,16 @@ def update_a_b(a, b, e_a, e_b):
         :return:
     """
     updated_a, updated_b = {}, {}
-    for k, a in a.items():
-        b = b[k]
-        e_a = e_a[k]
-        e_b = e_b[k]
+    for k, a_ in a.items():
+        b_ = b[k]
+        e_a_ = e_a[k]
+        e_b_ = e_b[k]
 
-        updated_a = solve_matrix_equation(a @ a.T, e_a)
-        updated_b = solve_matrix_equation(b @ b.T, e_b)
+        updated_a_ = solve_matrix_equation(a_ @ a_.T, e_a_)
+        updated_b_ = solve_matrix_equation(b_ @ b_.T, e_b_)
 
-        updated_a[k] = (updated_a)
-        updated_b[k] = (updated_b)
+        updated_a[k] = (updated_a_)
+        updated_b[k] = (updated_b_)
 
     return updated_a, updated_b
 

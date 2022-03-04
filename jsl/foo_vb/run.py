@@ -140,7 +140,7 @@ def train_continuous_mnist(key, model, train_loader,
 
             print('\nTraning task Num: {} Test Accuracy of task {}: {:.2f}%\n'.format(
                 task, i, test_acc))
-        ava_test.append(jnp.mean(test_accuracies))
+        ava_test.append(jnp.mean(np.array(test_accuracies)))
 
     return ava_test
 
@@ -210,5 +210,5 @@ def train_multiple_tasks(key, model, train_loader,
                 task, i, test_acc))
 
         print(test_accuracies)
-        ava_test.append(jnp.mean(test_accuracies))
+        ava_test.append(jnp.mean(np.array(test_accuracies)))
         return ava_test
