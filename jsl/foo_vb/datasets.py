@@ -79,12 +79,10 @@ class Permutation(torch.utils.data.Dataset):
 
 
 class DatasetsLoaders:
-    def __init__(self, dataset, batch_size=4, num_workers=4, pin_memory=True, **kwargs):
+    def __init__(self, dataset, batch_size=4, num_workers=num_workers, pin_memory=True, **kwargs):
         self.dataset_name = dataset
         self.valid_loader = None
         self.num_workers = num_workers
-        if self.num_workers is None:
-            self.num_workers = 4
 
         self.random_erasing = kwargs.get("random_erasing", False)
         self.reduce_classes = kwargs.get("reduce_classes", None)
@@ -132,13 +130,13 @@ class DatasetsLoaders:
             self.train_set = torchvision.datasets.CIFAR10(root='./data', train=True,
                                                           download=True, transform=transform_train)
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             self.test_set = torchvision.datasets.CIFAR10(root='./data', train=False,
                                                          download=True, transform=transform_test)
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "CIFAR100":
             # CIFAR100:
@@ -164,7 +162,7 @@ class DatasetsLoaders:
             _reduce_class(self.train_set, self.reduce_classes, train=True,
                           preserve_label_space=kwargs.get("preserve_label_space"))
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             self.test_set = torchvision.datasets.CIFAR100(root='./data', train=False,
@@ -172,7 +170,7 @@ class DatasetsLoaders:
             _reduce_class(self.test_set, self.reduce_classes, train=False,
                           preserve_label_space=kwargs.get("preserve_label_space"))
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "MNIST":
             # MNIST:
@@ -213,7 +211,7 @@ class DatasetsLoaders:
                     self.train_set.train_labels[lbl_idx] = labels_remapping[self.train_set.train_labels[lbl_idx]]
 
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             # Create test set
@@ -234,7 +232,7 @@ class DatasetsLoaders:
                     self.test_set.test_labels[lbl_idx] = labels_remapping[self.test_set.test_labels[lbl_idx]]
 
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "FashionMNIST":
             # MNIST:
@@ -261,13 +259,13 @@ class DatasetsLoaders:
             self.train_set = torchvision.datasets.FashionMNIST(root='./data/fmnist', train=True,
                                                         download=True, transform=transform)
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             self.test_set = torchvision.datasets.FashionMNIST(root='./data/fmnist', train=False,
                                                        download=True, transform=transform)
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "SVHN":
             # SVHN:
@@ -291,13 +289,13 @@ class DatasetsLoaders:
             self.train_set = torchvision.datasets.SVHN(root='./data', split="train",
                                                                download=True, transform=transform)
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             self.test_set = torchvision.datasets.SVHN(root='./data', split="test",
                                                               download=True, transform=transform)
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "NOTMNIST":
             # MNIST:
@@ -317,12 +315,12 @@ class DatasetsLoaders:
             self.train_set = NOTMNIST(root='./data/notmnist', train=True, download=True, transform=transform)
 
             self.train_loader = torch.utils.data.DataLoader(self.train_set, batch_size=self.batch_size,
-                                                            shuffle=True, num_workers=1,
+                                                            shuffle=True, num_workers=num_workers,
                                                             pin_memory=pin_memory)
 
             self.test_set = NOTMNIST(root='./data/notmnist', train=False, download=True, transform=transform)
             self.test_loader = torch.utils.data.DataLoader(self.test_set, batch_size=self.batch_size,
-                                                           shuffle=False, num_workers=1,
+                                                           shuffle=False, num_workers=num_workers,
                                                            pin_memory=pin_memory)
         if dataset == "CONTPERMUTEDPADDEDMNIST":
             transform = transforms.Compose(
@@ -342,7 +340,7 @@ class DatasetsLoaders:
             test_loaders = [torch.utils.data.DataLoader(torchvision.datasets.MNIST(root='./data', train=False,
                                                                                    download=True, transform=transform),
                                                         batch_size=self.batch_size, shuffle=False,
-                                                        num_workers=1, pin_memory=pin_memory)]
+                                                        num_workers=num_workers, pin_memory=pin_memory)]
             self.num_of_permutations = len(kwargs.get("all_permutation"))
             all_permutation = kwargs.get("all_permutation", None)
             for p_idx in range(self.num_of_permutations):
@@ -363,7 +361,7 @@ class DatasetsLoaders:
                                                                   download=True, transform=transform),
                                        permutation, self.target_offset)
                 test_loaders.append(torch.utils.data.DataLoader(test_set, batch_size=self.batch_size,
-                                                                shuffle=False, num_workers=1,
+                                                                shuffle=False, num_workers=num_workers,
                                                                 pin_memory=pin_memory))
             self.test_loader = test_loaders
             # Concat datasets
@@ -394,7 +392,7 @@ class DatasetsLoaders:
                                                              self.tasks_probs_over_iterations,
                                                          num_of_batches=kwargs.get("iterations_per_virtual_epc", 1))
             self.train_loader = torch.utils.data.DataLoader(all_datasets, batch_size=self.batch_size,
-                                                            num_workers=1, sampler=train_sampler, pin_memory=pin_memory)
+                                                            num_workers=num_workers, sampler=train_sampler, pin_memory=pin_memory)
 
 
 class ContinuousMultinomialSampler(torch.utils.data.Sampler):
