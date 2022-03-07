@@ -29,28 +29,16 @@ problems_to_id = {
 }
 
 model_to_gen_fns = {
-<<<<<<< HEAD
                   "mlp": make_mlp_apply_fn,
                   "linear": make_mlp_apply_fn,
                   "poly": make_poly_fit_fn
                  }
-=======
-    "MLP": make_mlp_logit_fn,
-    "Linear": make_linear_logit_fn,
-    "Poly": make_poly_fit_fn
-}
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
 
 agents = {
          "KalmanFilter": KalmanFilterReg,
          "EEKF": EmbeddedExtendedKalmanFilter
          }
 
-<<<<<<< HEAD
-=======
-
-# agent = online_learner_sgd_agent(optimizer=optax.(), buffer_size = 100)
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
 
 def main(config: ml_collections.ConfigDict):
 
@@ -59,7 +47,6 @@ def main(config: ml_collections.ConfigDict):
 
     key = random.PRNGKey(config.seed)
 
-<<<<<<< HEAD
     create_model_fn = model_to_gen_fns[config.env.model.lower()]
     model_key, key = random.split(key)
     
@@ -90,58 +77,17 @@ def main(config: ml_collections.ConfigDict):
                 )
     
     agent = agents[config.agent.model](**config.agent.init_kwargs)
-=======
-    id = problems_to_id[config.problem.lower()]
-    generate_fn = model_to_gen_fns[config.env_model]
-    fit_key, key = random.split(key)
-    fit_fn = generate_fn(config.prior_knowledge.input_dim,
-                         config.prior_knowledge.temperature,
-                         config.prior_knowledge.hidden,
-                         config.prior_knowledge.num_classes,
-                         fit_key)
-    x_train_generator = make_gaussian_sampler(config.prior_knowledge.input_dim)
-    x_test_generator = make_gaussian_sampler(config.prior_knowledge.input_dim)
-
-    env_key, key = random.split(key)
-    register(id="seqreg-v0", entry_point="envs:RegressionEnv",
-             max_episode_steps=320,
-             kwargs={"fit_fn": fit_fn,
-                     "x_train_generator": x_train_generator,
-                     "x_test_generator": x_test_generator,
-                     "prior_knowledge": config.prior_knowledge,
-                     "train_batch_size": config.train_batch_size,
-                     "test_batch_size": config.test_batch_size,
-                     "num_steps": config.nsteps,
-                     "key": env_key}
-             )
-    env = gym.make(id)
-
-    mu0 = jnp.zeros(config.prior_knowledge.input_dim)
-    Sigma0 = jnp.eye(config.prior_knowledge.input_dim) * 10.
-    F = jnp.eye(config.prior_knowledge.input_dim)
-    Q, R = 0, 1
-    agent = KalmanFilterReg(mu0, Sigma0, F, Q, R)
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
     rewards_per_trial = []
     params_per_trial = []
 
-<<<<<<< HEAD
     for episode in range(config.ntrials): 
         rewards, params = [], {}
-=======
-    for episode in range(config.ntrials):
-        rewards = []
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
         # agent.reset(next(key))
         reset_key, key = random.split(key)
         obs = env.reset()  # initial train, test split
         agent.update(obs["X_train"], obs["y_train"])
-<<<<<<< HEAD
         
         Ypred  = agent.predict(obs["X_test"])
-=======
-        Ypred = agent.predict(obs["X_test"])
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
 
         for t in range(config.nsteps):  # online learning
             obs, reward, done, info = env.step(Ypred)
@@ -150,7 +96,6 @@ def main(config: ml_collections.ConfigDict):
             
             if done:
                 break
-<<<<<<< HEAD
             
             updated_params = agent.update(obs["X_train"], obs["y_train"])
             
@@ -162,10 +107,6 @@ def main(config: ml_collections.ConfigDict):
                     params = updated_params
 
             Ypred  = agent.predict(obs["X_test"]) 
-=======
-            agent.update(obs["X_train"], obs["y_train"])
-            Ypred = agent.predict(obs["X_test"])
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
 
         rewards_per_trial.append(rewards)
         
@@ -175,7 +116,6 @@ def main(config: ml_collections.ConfigDict):
     return params_per_trial, rewards_per_trial
 
 
-<<<<<<< HEAD
 def from_command_line(argv):
     if len(argv) > 1:
         raise app.UsageError('Too many command-line arguments.')
@@ -185,8 +125,3 @@ def from_command_line(argv):
 if __name__ == '__main__':
   flags.mark_flags_as_required(['config'])
   app.run(from_command_line)
-=======
-if __name__ == '__main__':
-    flags.mark_flags_as_required(['config'])
-    app.run(main)
->>>>>>> 2433858c0d42c29c0039940078eae7ce1c26a19c
