@@ -8,8 +8,10 @@ An agent is a likelihood model of the form p(y|x,theta) and an inference algorit
 Examples:
 
 Models:
-- Linear regresson
--  MLP
+- Linear regresson (with fixed basis function): N(y|w' phi(x), sigma^2) where phi(x) is specified.
+- Logistic regresson (with fixed basis function): Cat(y|softmax(W' phi(x))),  where phi(x) is specified. 
+- MLP
+- CNN
 -  
 Posterior inference algorithms:
 - (Extended) Kalman Filter 
