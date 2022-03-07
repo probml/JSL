@@ -14,8 +14,11 @@ Models:
 - CNN
 -  
 Posterior inference algorithms:
-- (Extended) Kalman Filter 
+
 - SGD 
+- "Deep ensembles" ie SGD on multiple copies of the model
+- (Extended) Kalman Filter 
+- Sequential VI
 
 ## Environments
 
