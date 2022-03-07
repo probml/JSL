@@ -1,12 +1,19 @@
-# SNB
+# Sequential Learning Gym
 
 In this repository, the neural testbed benchmark is extended to the online or continual learning setting. Environments are implemented as custom OpenAI Gym environmennts.
 
 ## Agents
 
-- Embedded Extended Kalman Filter
-- Kalman filter
-- Multi Layer Perceptron
+An agent is a likelihood model of the form p(y|x,theta) and an inference algorithm for the posterior p(theta|D(1:t))
+Examples:
+
+Models:
+- Linear regresson
+-  MLP
+-  
+Posterior inference algorithms:
+- (Extended) Kalman Filter 
+- SGD 
 
 ## Environments
 
