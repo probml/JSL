@@ -14,6 +14,7 @@ import numpy as np
 import envs.classification_env as classification_env
 from envs.base import PriorKnowledge, make_gaussian_sampler
 
+
 class MLPClassificationEnsembleTest(parameterized.TestCase):
 
     @parameterized.parameters(itertools.product([3, 10], [1, 3], [1, 3]))
@@ -46,7 +47,7 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
         # Check that the training data is reasonable.
         assert mlp_model.x_train.shape[1:] == (train_batch_size, input_dim)
         assert mlp_model.y_train.shape[1:] == (train_batch_size, 1)
-        
+
         assert np.all(~np.isnan(mlp_model.x_train))
         assert np.all(~np.isnan(mlp_model.y_train))
 
@@ -65,8 +66,6 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
             assert y_test.shape == (tau, 1)
             assert np.all(~np.isnan(x_test))
             assert np.all(~np.isnan(y_test))
-        
-
 
     @parameterized.parameters(itertools.product([1, 10, 100]))
     def test_not_all_test_data_same_x(self, num_steps: int):
@@ -144,8 +143,7 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
         degenerate_cases = labels_means.count(0.) + labels_means.count(1.)
         # Check that for at most 20% of problems, the labels are degenerate
         assert degenerate_cases / num_seeds <= 0.2
-    
 
 
 if __name__ == '__main__':
-  absltest.main()
+    absltest.main()

@@ -1,13 +1,11 @@
-
 """
 Regression-based gym environment.
 """
-
-import chex
-
 import jax.numpy as jnp
 from jax import jit
+
 import haiku as hk
+import chex
 
 from gym import Env, spaces
 from typing import Callable, Any
@@ -131,3 +129,45 @@ class RegressionEnv(Env):
   def render(self):
     pass
 
+  @property
+  def done(self):
+      return self.t >= self.x_train.shape[0]
+
+  def step(self, action):
+      done = self.done
+      info = {}
+
+      y = self.y_train[self.t]
+      err = mean_squared_error(action, y)
+      reward = -mean_squared_error(action, y)
+      self.t += 1
+
+      if done:
+          observation = {}
+      else:
+          observation = {"X_train": self.x_train[self.t],
+                          "y_train": self.y_train[self.t],
+                          "X_test": self.x_test[self.t],
+                          "y_test": self.y_test[self.t]
+                          }
+      return observation, reward, done, info
+
+  def test_data(self, key: chex.PRNGKey):
+      """Generates test data and evaluates log likelihood w.r.t. environment.
+      The test data that is output will be of length tau examples.
+      We wanted to "pass" tau here... but ran into jit issues.
+      Args:
+        key: Random number generator key.
+      Returns:
+        Tuple of data (with tau examples) and log-likelihood under posterior.
+      """
+
+      def sample_test(k: chex.PRNGKey):
+          (x_train, y_train), _, _ = sample_gaussian_reg_data(
+              self.logit_fn, self.x_test_generator, self.tau, key=k)
+          return x_train, y_train
+
+      return jit(sample_test)(key)
+
+  def render(self):
+      pass
