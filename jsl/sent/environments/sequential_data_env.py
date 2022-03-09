@@ -1,13 +1,12 @@
-
-from pyexpat.model import XML_CTYPE_CHOICE
 import jax.numpy as jnp
-from jax import random
+from jax import random, nn
 
 import chex
 
 def classification_loss(logprobs, targets):
-  #target_class = jnp.argmax(targets, axis=1)
-  nll = jnp.take_along_axis(logprobs, jnp.expand_dims(targets, axis=1), axis=1)
+  nclasses = logprobs.shape[-1]
+  one_hot_targets = nn.one_hot(targets, nclasses, axis=-1)
+  nll = jnp.sum(logprobs * one_hot_targets, axis=-1)
   ce = -jnp.mean(nll)
   return ce
 

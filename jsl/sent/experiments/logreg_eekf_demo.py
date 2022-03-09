@@ -67,7 +67,7 @@ def main():
     P_eekf_hist = params["cov"]
     
     w_eekf = params["mean"][-1]
-    P_eekf = params["mean"][-1]
+    P_eekf = params["cov"][-1]
 
  
     ### *** Ploting surface predictive distribution ***
@@ -85,7 +85,7 @@ def main():
     title = "EEKF  Predictive Distribution"
     demo.plot_posterior_predictive(ax, X, Xspace, Z_eekf, title, colors)
     dict_figures["logistic_regression_surface_eekf"] = fig_eekf
-    plt.savefig("logistic_regression_surface_eekf.png")
+
     ### Plot EEKF and Laplace training history
     P_eekf_hist_diag = jnp.diagonal(P_eekf_hist, axis1=1, axis2=2)
     #P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
@@ -104,8 +104,6 @@ def main():
         ax.set_ylabel("weights")
         plt.tight_layout()
         dict_figures[f"logistic_regression_hist_ekf_w{k}"] = fig_weight_k
-        plt.savefig(f"logistic_regression_hist_ekf_w{k}.png")
-    
 
     print("EEKF weights")
     print(w_eekf, end="\n"*2)
