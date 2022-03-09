@@ -1,15 +1,15 @@
 __all__ = [
-    "sis_vs_smc_demo",
-    "ekf_vs_ukf_mlp_demo",
-    "eekf_logistic_regression_demo",
-    "ekf_mlp_anim_demo",
-    "linreg_kf_demo",
-    "kf_parallel_demo",
+    "sis_vs_smc",
+    "ekf_vs_ukf_mlp",
+    "eekf_logistic_regression",
+    "ekf_mlp_anim",
+    "linreg_kf",
+    "kf_parallel",
     "ekf_vs_ukf",
-    "kf_continuous_circle_demo",
-    "kf_spiral_demo",
-    "kf_tracking_demo",
-    "bootstrap_filter_demo",
-    "pendulum_1d_demo",
-    "ekf_continuous_demo"
+    "kf_continuous_circle",
+    "kf_spiral",
+    "kf_tracking",
+    "bootstrap_filter",
+    "pendulum_1d",
+    "ekf_continuous"
 ]
