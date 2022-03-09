@@ -1,4 +1,5 @@
 # Kalman filter agent
+import jax.numpy as jnp
 
 import chex
 from typing import  Callable, List
@@ -6,7 +7,7 @@ from typing import  Callable, List
 from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
 from jsl.sent.agents.agent import Agent
 
-class EmbeddedExtendedKalmanFilter(Agent):
+class EEKF(Agent):
 
     def __init__(self,
                 fz: Callable,
@@ -34,9 +35,11 @@ class EmbeddedExtendedKalmanFilter(Agent):
     def update(self,
               X: chex.Array,
               y: chex.Array):
-        (self.mu, self.Sigma, _), params = self.eekf.filter(self.mu, y, observations=X,
-                        Vinit=self.Sigma,
-                        return_params=self.return_params)
+        (self.mu, self.Sigma, _), params = self.eekf.filter(self.mu,
+                                                    y,
+                                                    observations=X,
+                                                    Vinit=self.Sigma,
+                                                    return_params=self.return_params)
         return params
 
     def predict(self, x: chex.Array):
