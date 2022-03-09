@@ -1,6 +1,6 @@
-# Sequential Learning Gym
+# Sequential Learning
 
-We extend the [neural testbed](https://github.com/deepmind/neural_testbed) from Deepmind to handle online or continual supervised learning. Environments are implemented as custom OpenAI Gym environments. At the t'th step, the environment creates a data sample from p_t(X,Y); the agent updates its beliefs
+We extend the [neural testbed](https://github.com/deepmind/neural_testbed) from DeepMind to handle online or continual supervised learning. Environments are implemented as custom OpenAI Gym environments. At the t'th step, the environment creates a data sample from p_t(X,Y); the agent updates its beliefs
 about the function, and makes a prediction on a test set; the environment then gives the agent a reward, and the process repeats.
 
 More precisely, the main code looks like this:
