@@ -52,11 +52,6 @@ def main():
     R = 10 * jnp.diag(jnp.array([2, 1, 2, 1]))
     C = jnp.eye(4)
 
-    transition_matrix = jnp.array([
-        [0.9, 0.05, 0.05],
-        [0.05, 0.9, 0.05],
-        [0.05, 0.05, 0.9]
-    ])
 
     transition_matrix = jnp.array([
         [0.8, 0.1, 0.1],
@@ -83,7 +78,6 @@ def main():
     p_init = jnp.array([0.0, 1.0, 0.0])
 
     # Initial filter configuration
-    mu_0 = 0.01 * random.normal(key_mean_init, (nparticles, 4))
     mu_0 = 0.01 * random.normal(key_mean_init, (nparticles, 4))
     Sigma_0 = jnp.zeros((nparticles, 4,4))
     s0 = random.categorical(key_state, logit(p_init), shape=(nparticles,))

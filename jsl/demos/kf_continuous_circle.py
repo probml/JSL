@@ -7,10 +7,13 @@
 
 import numpy as np
 import jax.numpy as jnp
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 from jax import random
 from jsl.demos.plot_utils import plot_ellipse
-from jsl.lds.cont_kalman_filter import ContinuousKalmanFilter
+
+from jsl.lds.kalman_filter import LDS
+from jsl.lds.cont_kalman_filter import sample, filter
+
 
 def main():
     A = jnp.array([[0, 1], [-1, 0]])
@@ -29,9 +32,9 @@ def main():
     Sigma0 = jnp.eye(2)
 
     key = random.PRNGKey(314)
-    kf = ContinuousKalmanFilter(A, C, Qt, Rt, x0, Sigma0)
-    sample_state, sample_obs, jump = kf.sample(key, x0, T, nsamples)
-    mu_hist, V_hist, *_ = kf.filter(sample_obs, jump, dt)
+    lds = LDS(A, C, Qt, Rt, x0, Sigma0)
+    sample_state, sample_obs, jump = sample(key, lds, x0, T, nsamples)
+    mu_hist, V_hist, *_ = filter(lds, sample_obs, jump, dt)
 
     step = 0.1
     vmin, vmax = -1.5, 1.5 + step
@@ -65,8 +68,10 @@ def main():
 
     return dict_figures
 
+
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     dict_figures = main()
     savefig(dict_figures)
     plt.show()
