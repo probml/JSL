@@ -30,8 +30,6 @@ def plot_inference(sample_obs, mean_hist):
     return fig
 
 def main():
-    key = random.PRNGKey(314)
-
     def fz(x, dt): return x + dt * jnp.array([jnp.sin(x[1]), jnp.cos(x[0])])
     def fx(x): return x
 

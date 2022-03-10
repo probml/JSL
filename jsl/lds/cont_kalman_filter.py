@@ -176,7 +176,7 @@ def filter(params: LDS,
         return (mun, Sigman), (mun, Sigman, mu_update, Sigman_cond)
 
     initial_state = (mu1, Sigma1)
-    _, (mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist) = lax.scan(step, initial_state, x_hist)
+    _, (mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist) = lax.scan(step, initial_state, x_hist[1:])
 
     mu_hist = jnp.vstack([mu1[None, ...], mu_hist])
     Sigma_hist = jnp.vstack([Sigma1[None, ...], Sigma_hist])

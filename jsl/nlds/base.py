@@ -14,50 +14,55 @@
 import jax
 from jax.random import split, multivariate_normal
 
+import chex
 
+from dataclasses import dataclass
+from typing import Callable
+
+
+@dataclass
 class NLDS:
     """
-    Base class for the Nonliear dynamical systems' module
+    Base class for the nonlinear dynamical systems' module
+
+    Parameters
+    ----------
+    fz: function
+        Nonlinear state transition function
+    fx: function
+        Nonlinear observation function
+    Q: array(state_size, state_size) or function
+        Nonlinear state transition noise covariance function
+    R: array(obs_size, obs_size) or function
+        Nonlinear observation noise covariance function
     """
+    fz: Callable
+    fx: Callable
+    Q: chex.Array
+    R: chex.Array
+    alpha: float = 0.
+    beta: float = 0.
+    kappa: float = 0.
+    d: int = 0
 
-    def __init__(self, fz, fx, Q, R):
-        """
-        Base class for the nonlinear dynamical systems' module
-
-        Parameters
-        ----------
-        fz: function
-            Nonlinear state transition function
-        fx: function
-            Nonlinear observation function
-        Q: array(state_size, state_size) or function
-            Nonlinear state transition noise covariance function
-        R: array(obs_size, obs_size) or function
-            Nonlinear observation noise covariance function
-        """
-        self.fz = fz
-        self.fx = fx
-        self.__Q = Q
-        self.__R = R
-
-    def Q(self, z, *args):
-        if callable(self.__Q):
-            return self.__Q(z, *args)
+    def Qz(self, z, *args):
+        if callable(self.Q):
+            return self.Q(z, *args)
         else:
-            return self.__Q
+            return self.Q
 
-    def R(self, x, *args):
-        if callable(self.__R):
-            return self.__R(x, *args)
+    def Rx(self, x, *args):
+        if callable(self.R):
+            return self.R(x, *args)
         else:
-            return self.__R
+            return self.R
 
     def __sample_step(self, input_vals, obs):
         key, state_t = input_vals
         key_system, key_obs, key = split(key, 3)
 
-        state_t = multivariate_normal(key_system, self.fz(state_t), self.Q(state_t))
-        obs_t = multivariate_normal(key_obs, self.fx(state_t, *obs), self.R(state_t, *obs))
+        state_t = multivariate_normal(key_system, self.fz(state_t), self.Qz(state_t))
+        obs_t = multivariate_normal(key_obs, self.fx(state_t, *obs), self.Rx(state_t, *obs))
 
         return (key, state_t), (state_t, obs_t)
 

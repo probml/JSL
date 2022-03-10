@@ -1,13 +1,14 @@
 # Compare extended Kalman filter with unscented kalman filter on a nonlinear 2d tracking problem
-
 from jax import random
+
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 
+import jsl.nlds.extended_kalman_filter as ekf_lib
+import jsl.nlds.unscented_kalman_filter as ukf_lib
 from jsl.demos import plot_utils
 from jsl.nlds.base import NLDS
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
+
 
 def check_symmetric(a, rtol=1.1):
     return jnp.allclose(a, a.T, rtol=rtol)
@@ -37,8 +38,10 @@ def plot_inference(sample_obs, mean_hist, Sigma_hist):
     plt.axis("equal")
     return fig, ax
 
+
 def main():
     def fz(x, dt): return x + dt * jnp.array([jnp.sin(x[1]), jnp.cos(x[0])])
+
     def fx(x, *args): return x
 
     dt = 0.4
@@ -53,13 +56,14 @@ def main():
     alpha, beta, kappa = 1, 0, 2
 
     key = random.PRNGKey(31415)
-    model = NLDS(lambda x: fz(x, dt), fx, Qt, Rt)
-    sample_state, sample_obs = model.sample(key, x0, nsteps)
-    ekf = ExtendedKalmanFilter.from_base(model)
-    ukf = UnscentedKalmanFilter.from_base(model, alpha, beta, kappa, state_size)
+    ekf_model = NLDS(lambda x: fz(x, dt), fx, Qt, Rt)
+    sample_state, sample_obs = ekf_model.sample(key, x0, nsteps)
 
-    _, ekf_hist = ekf.filter(x0, sample_obs, return_params=["mean", "cov"])
-    ukf_mean_hist, ukf_Sigma_hist = ukf.filter(x0, sample_obs)
+    ukf_model = NLDS(lambda x: fz(x, dt), fx, Qt, Rt,
+                     alpha, beta, kappa, state_size)
+
+    _, ekf_hist = ekf_lib.filter(ekf_model, x0, sample_obs, return_params=["mean", "cov"])
+    ukf_mean_hist, ukf_Sigma_hist = ukf_lib.filter(ukf_model, x0, sample_obs)
 
     ekf_mean_hist = ekf_hist["mean"]
     ekf_Sigma_hist = ekf_hist["cov"]
@@ -84,6 +88,7 @@ def main():
 
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     dict_figures = main()
     savefig(dict_figures)
     plt.show()

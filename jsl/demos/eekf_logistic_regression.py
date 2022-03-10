@@ -8,17 +8,16 @@
 # p(y(t) |  w(t), x(t)) propto Gauss(y(t) | h_t(w(t)), R(t))
 # where h_t(w) = sigmoid(w' * x(t)) = p(t) and  R(t) = p(t) * (1-p(t))
 
-import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
-from functools import partial
-from jax.scipy.optimize import minimize
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-from jax.scipy.stats import norm
+
+from jsl.nlds.base import NLDS
+from jsl.nlds.extended_kalman_filter import filter
 
 # Import data and baseline solution
 from jsl.demos import logreg_biclusters as demo
+
 figures, data = demo.main()
 X = data["X"]
 y = data["y"]
@@ -27,19 +26,28 @@ Xspace = data["Xspace"]
 Phispace = data["Phispace"]
 w_laplace = data["w_laplace"]
 
-#jax.config.update("jax_platform_name", "cpu")
-#jax.config.update("jax_enable_x64", True)
+
+# jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_enable_x64", True)
 
 def sigmoid(x): return jnp.exp(x) / (1 + jnp.exp(x))
+
+
 def log_sigmoid(z): return z - jnp.log1p(jnp.exp(z))
+
+
 def fz(x): return x
+
+
 def fx(w, x): return sigmoid(w[None, :] @ x)
+
+
 def Rt(w, x): return (sigmoid(w @ x) * (1 - sigmoid(w @ x)))[None, None]
+
 
 def main():
     N, M = Phi.shape
     n_datapoints, ndims = Phi.shape
-    colors = ["black" if el else "white" for el in y]
 
     # Predictive domain
     xmin, ymin = X.min(axis=0) - 0.1
@@ -54,12 +62,11 @@ def main():
     Pt = jnp.eye(M) * 0.0
     P0 = jnp.eye(M) * 2.0
 
-    model = ExtendedKalmanFilter(fz, fx, Pt, Rt)
-    (w_eekf, P_eekf), eekf_hist = model.filter(mu_t, y, Phi, P0, return_params=["mean", "cov"])
+    model = NLDS(fz, fx, Pt, Rt)
+    (w_eekf, P_eekf), eekf_hist = filter(model, mu_t, y, Phi, P0, return_params=["mean", "cov"])
     w_eekf_hist = eekf_hist["mean"]
     P_eekf_hist = eekf_hist["cov"]
 
- 
     ### *** Ploting surface predictive distribution ***
     colors = ["black" if el else "white" for el in y]
     dict_figures = {}
@@ -78,7 +85,7 @@ def main():
 
     ### Plot EEKF and Laplace training history
     P_eekf_hist_diag = jnp.diagonal(P_eekf_hist, axis1=1, axis2=2)
-    #P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
+    # P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
     lcolors = ["black", "tab:blue", "tab:red"]
     elements = w_eekf_hist.T, P_eekf_hist_diag.T, w_laplace, lcolors
     timesteps = jnp.arange(n_datapoints) + 1
@@ -94,16 +101,16 @@ def main():
         ax.set_ylabel("weights")
         plt.tight_layout()
         dict_figures[f"logistic_regression_hist_ekf_w{k}"] = fig_weight_k
-    
 
     print("EEKF weights")
-    print(w_eekf, end="\n"*2)
+    print(w_eekf, end="\n" * 2)
 
     return dict_figures
 
 
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     figs = main()
     savefig(figs)
     plt.show()

@@ -1,119 +1,117 @@
+"""
+Implementation of the Unscented Kalman Filter for discrete time systems
+"""
+
 import jax.numpy as jnp
-from jax.random import split, choice, multivariate_normal
 from jax.lax import scan
-from jax.ops import index_update
-from jax.scipy import stats
+
+import chex
+from typing import List
 
 from .base import NLDS
 
 
-class UnscentedKalmanFilter(NLDS):
+def sqrtm(M):
     """
-    Implementation of the Unscented Kalman Filter for discrete time systems
+    Compute the matrix square-root of a hermitian
+    matrix M. i,e, R such that RR = M
+
+    Parameters
+    ----------
+    M: array(m, m)
+        Hermitian matrix
+
+    Returns
+    -------
+    array(m, m): square-root matrix
     """
+    evals, evecs = jnp.linalg.eigh(M)
+    R = evecs @ jnp.sqrt(jnp.diag(evals)) @ jnp.linalg.inv(evecs)
+    return R
 
-    def __init__(self, fz, fx, Q, R, alpha, beta, kappa, d):
-        super().__init__(fz, fx, Q, R)
-        self.d = d
-        self.alpha = alpha
-        self.beta = beta
-        self.kappa = kappa
-        self.lmbda = alpha ** 2 * (self.d + kappa) - self.d
-        self.gamma = jnp.sqrt(self.d + self.lmbda)
 
-    @classmethod
-    def from_base(cls, model, alpha, beta, kappa, d):
-        """
-        Initialise class from an instance of the NLDS parent class
-        """
-        return cls(model.fz, model.fx, model.Q, model.R, alpha, beta, kappa, d)
+def filter(params: NLDS,
+           init_state: chex.Array,
+           sample_obs: chex.Array,
+           observations: List = None,
+           Vinit: chex.Array = None):
+    """
+    Run the Unscented Kalman Filter algorithm over a set of observed samples.
+    Parameters
+    ----------
+    sample_obs: array(nsamples, obs_size)
+    Returns
+    -------
+    * array(nsamples, state_size)
+        History of filtered mean terms
+    * array(nsamples, state_size, state_size)
+        History of filtered covariance terms
+    """
+    alpha = params.alpha
+    beta = params.beta
+    kappa = params.kappa
+    d = params.d
 
-    @staticmethod
-    def sqrtm(M):
-        """
-        Compute the matrix square-root of a hermitian
-        matrix M. i,e, R such that RR = M
-        
-        Parameters
-        ----------
-        M: array(m, m)
-            Hermitian matrix
-        
-        Returns
-        -------
-        array(m, m): square-root matrix
-        """
-        evals, evecs = jnp.linalg.eigh(M)
-        R = evecs @ jnp.sqrt(jnp.diag(evals)) @ jnp.linalg.inv(evecs)
-        return R
+    fx, fz = params.fx, params.fz
+    Q, R = params.Qz, params.Rx
 
-    def filter(self, init_state, sample_obs, observations=None, Vinit=None):
-        """
-        Run the Unscented Kalman Filter algorithm over a set of observed samples.
-        Parameters
-        ----------
-        sample_obs: array(nsamples, obs_size)
-        Returns
-        -------
-        * array(nsamples, state_size)
-            History of filtered mean terms
-        * array(nsamples, state_size, state_size)
-            History of filtered covariance terms
-        """
-        wm_vec = jnp.array([1 / (2 * (self.d + self.lmbda)) if i > 0
-                            else self.lmbda / (self.d + self.lmbda)
-                            for i in range(2 * self.d + 1)])
-        wc_vec = jnp.array([1 / (2 * (self.d + self.lmbda)) if i > 0
-                            else self.lmbda / (self.d + self.lmbda) + (1 - self.alpha ** 2 + self.beta)
-                            for i in range(2 * self.d + 1)])
-        nsteps, *_ = sample_obs.shape
-        initial_mu_t = init_state
-        initial_Sigma_t = self.Q(init_state) if Vinit is None else Vinit
+    lmbda = alpha ** 2 * (d + kappa) - d
+    gamma = jnp.sqrt(d + lmbda)
 
-        if observations is None:
-            observations = [()] * nsteps
-        else:
-            observations = [(obs,) for obs in observations]
+    wm_vec = jnp.array([1 / (2 * (d + lmbda)) if i > 0
+                        else lmbda / (d + lmbda)
+                        for i in range(2 * d + 1)])
+    wc_vec = jnp.array([1 / (2 * (d + lmbda)) if i > 0
+                        else lmbda / (d + lmbda) + (1 - alpha ** 2 + beta)
+                        for i in range(2 * d + 1)])
+    nsteps, *_ = sample_obs.shape
+    initial_mu_t = init_state
+    initial_Sigma_t = Q(init_state) if Vinit is None else Vinit
 
-        def filter_step(params, carry):
-            mu_t, Sigma_t = params
-            observation, sample_observation = carry
+    if observations is None:
+        observations = iter([()] * nsteps)
+    else:
+        observations = iter([(obs,) for obs in observations])
 
-            # TO-DO: use jax.scipy.linalg.sqrtm when it gets added to lib
-            comp1 = mu_t[:, None] + self.gamma * self.sqrtm(Sigma_t)
-            comp2 = mu_t[:, None] - self.gamma * self.sqrtm(Sigma_t)
-            # sigma_points = jnp.c_[mu_t, comp1, comp2]
-            sigma_points = jnp.concatenate((mu_t[:, None], comp1, comp2), axis=1)
+    def filter_step(params, sample_observation):
+        mu_t, Sigma_t = params
+        observation = next(observations)
 
-            z_bar = self.fz(sigma_points)
-            mu_bar = z_bar @ wm_vec
-            Sigma_bar = (z_bar - mu_bar[:, None])
-            Sigma_bar = jnp.einsum("i,ji,ki->jk", wc_vec, Sigma_bar, Sigma_bar) + self.Q(mu_t)
+        # TO-DO: use jax.scipy.linalg.sqrtm when it gets added to lib
+        comp1 = mu_t[:, None] + gamma * sqrtm(Sigma_t)
+        comp2 = mu_t[:, None] - gamma * sqrtm(Sigma_t)
+        # sigma_points = jnp.c_[mu_t, comp1, comp2]
+        sigma_points = jnp.concatenate((mu_t[:, None], comp1, comp2), axis=1)
 
-            Sigma_bar_half = self.sqrtm(Sigma_bar)
-            comp1 = mu_bar[:, None] + self.gamma * Sigma_bar_half
-            comp2 = mu_bar[:, None] - self.gamma * Sigma_bar_half
-            # sigma_points = jnp.c_[mu_bar, comp1, comp2]
-            sigma_points = jnp.concatenate((mu_bar[:, None], comp1, comp2), axis=1)
+        z_bar = fz(sigma_points)
+        mu_bar = z_bar @ wm_vec
+        Sigma_bar = (z_bar - mu_bar[:, None])
+        Sigma_bar = jnp.einsum("i,ji,ki->jk", wc_vec, Sigma_bar, Sigma_bar) + Q(mu_t)
 
-            x_bar = self.fx(sigma_points, *observation)
-            x_hat = x_bar @ wm_vec
-            St = x_bar - x_hat[:, None]
-            St = jnp.einsum("i,ji,ki->jk", wc_vec, St, St) + self.R(mu_t, *observation)
+        Sigma_bar_half = sqrtm(Sigma_bar)
+        comp1 = mu_bar[:, None] + gamma * Sigma_bar_half
+        comp2 = mu_bar[:, None] - gamma * Sigma_bar_half
+        # sigma_points = jnp.c_[mu_bar, comp1, comp2]
+        sigma_points = jnp.concatenate((mu_bar[:, None], comp1, comp2), axis=1)
 
-            mu_hat_component = z_bar - mu_bar[:, None]
-            x_hat_component = x_bar - x_hat[:, None]
-            Sigma_bar_y = jnp.einsum("i,ji,ki->jk", wc_vec, mu_hat_component, x_hat_component)
-            Kt = Sigma_bar_y @ jnp.linalg.inv(St)
+        x_bar = fx(sigma_points, *observation)
+        x_hat = x_bar @ wm_vec
+        St = x_bar - x_hat[:, None]
+        St = jnp.einsum("i,ji,ki->jk", wc_vec, St, St) + R(mu_t, *observation)
 
-            mu_t = mu_bar + Kt @ (sample_observation - x_hat)
-            Sigma_t = Sigma_bar - Kt @ St @ Kt.T
+        mu_hat_component = z_bar - mu_bar[:, None]
+        x_hat_component = x_bar - x_hat[:, None]
+        Sigma_bar_y = jnp.einsum("i,ji,ki->jk", wc_vec, mu_hat_component, x_hat_component)
+        Kt = Sigma_bar_y @ jnp.linalg.inv(St)
 
-            return (mu_t, Sigma_t), (mu_t, Sigma_t)
+        mu_t = mu_bar + Kt @ (sample_observation - x_hat)
+        Sigma_t = Sigma_bar - Kt @ St @ Kt.T
 
-        _, (mu_hist, Sigma_hist) = scan(filter_step, (initial_mu_t, initial_Sigma_t), (observations, sample_obs))
+        return (mu_t, Sigma_t), (mu_t, Sigma_t)
 
-        mu_hist = jnp.vstack([initial_mu_t, mu_hist])
-        Sigma_hist = jnp.vstack([initial_Sigma_t, Sigma_hist])
+    _, (mu_hist, Sigma_hist) = scan(filter_step, (initial_mu_t, initial_Sigma_t), sample_obs[1:])
 
-        return mu_hist, Sigma_hist
+    mu_hist = jnp.vstack([initial_mu_t[None, ...], mu_hist])
+    Sigma_hist = jnp.vstack([initial_Sigma_t[None, ...], Sigma_hist])
+
+    return mu_hist, Sigma_hist

@@ -7,22 +7,27 @@
 
 from jsl.demos import plot_utils
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 import jax.numpy as jnp
 from jax import random
-from jsl.nlds.continuous_extended_kalman_filter import ContinuousExtendedKalmanFilter
+
+from jsl.nlds.base import NLDS
+from jsl.nlds.continuous_extended_kalman_filter import estimate
+
 
 def fz(x):
     x, y = x
-    return  jnp.asarray([y, x - x ** 3])
+    return jnp.asarray([y, x - x ** 3])
+
 
 def fx(x):
     x, y = x
     return jnp.asarray([x, y])
 
+
 def main():
     dt = 0.01
-    T = 7.5
+    T = 7
     nsamples = 70
     x0 = jnp.array([0.5, -0.75])
 
@@ -32,9 +37,9 @@ def main():
     Rt = jnp.eye(2) * 0.01
 
     key = random.PRNGKey(314)
-    ekf = ContinuousExtendedKalmanFilter(fz, fx, Qt, Rt)
+    ekf = NLDS(fz, fx, Qt, Rt)
     sample_state, sample_obs, jump = ekf.sample(key, x0, T, nsamples)
-    mu_hist, V_hist = ekf.estimate(sample_state, sample_obs, jump, dt)
+    mu_hist, V_hist = estimate(ekf, sample_state, sample_obs, jump, dt)
 
     vmin, vmax, step = -1.5, 1.5 + 0.5, 0.5
     X = np.mgrid[-1:1.5:step, vmin:vmax:step][::-1]
@@ -66,8 +71,10 @@ def main():
 
     return dict_figures
 
+
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     dict_figures = main()

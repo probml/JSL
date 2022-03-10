@@ -8,10 +8,12 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
 from jax.ops import index_update
+
 from jsl.nlds.base import NLDS
-from jsl.nlds.extended_kalman_filter import ExtendedKalmanFilter
-from jsl.nlds.unscented_kalman_filter import UnscentedKalmanFilter
-from jsl.nlds.bootstrap_filter import BootstrapFilter
+import jsl.nlds.extended_kalman_filter as ekf_lib
+import jsl.nlds.unscented_kalman_filter as ukf_lib
+import jsl.nlds.bootstrap_filter as b_lib
+
 
 def plot_filter_true(ax, time, estimate, obs, ground_truth, label, colors="tab:blue"):
     ax.plot(time, estimate, c="black", label=label)
@@ -20,14 +22,17 @@ def plot_filter_true(ax, time, estimate, obs, ground_truth, label, colors="tab:b
             label="true angle")
     ax.legend()
 
+
 def fz(x, g=0.1, dt=0.1):
     x1, x2 = x[0], x[1]
     x1_new = x1 + x2 * dt
     x2_new = x2 - g * jnp.sin(x1) * dt
     return jnp.asarray([x1_new, x2_new])
 
+
 def fx(x, *args):
     return jnp.sin(jnp.asarray([x[0]]))
+
 
 def main():
     # *** Define initial configuration ***
@@ -52,39 +57,32 @@ def main():
     model = NLDS(lambda x: fz(x, g=g, dt=dt), fx, Q, Rt)
     sample_state, sample_obs = model.sample(key, x0, nsteps)
 
-
     # *** Pertubed data ***
     key_noisy, key_values = random.split(key_noisy)
     sample_obs_noise = sample_obs.copy()
-    samples_map = random.bernoulli(key_noisy, 0.5, (nsteps,)) 
+    samples_map = random.bernoulli(key_noisy, 0.5, (nsteps,))
     replacement_values = random.uniform(key_values, (samples_map.sum(),), minval=-2, maxval=2)
     sample_obs_noise = index_update(sample_obs_noise.ravel(), samples_map, replacement_values)
     colors = ["tab:red" if samp else "tab:blue" for samp in samples_map]
-
 
     # *** Perform filtering ****
     alpha, beta, kappa = 1, 0, 2
     state_size = 2
     Vinit = jnp.eye(state_size)
-    ekf = ExtendedKalmanFilter.from_base(model)
-    ukf = UnscentedKalmanFilter.from_base(model, alpha, beta, kappa, state_size)
-    particle_filter = BootstrapFilter(fz_vec, fx_vmap, Q, Rt)
+    ukf = NLDS(lambda x: fz(x, g=g, dt=dt), fx, Q, Rt, alpha, beta, kappa, state_size)
+    particle_filter = NLDS(fz_vec, fx_vmap, Q, Rt)
 
     print("Filtering data...")
-    _, ekf_hist = ekf.filter(x0, sample_obs, return_params=["mean", "cov"])
+    _, ekf_hist = ekf_lib.filter(model, x0, sample_obs, return_params=["mean", "cov"])
     ekf_mean_hist, ekf_Sigma_hist = ekf_hist["mean"], ekf_hist["cov"]
-    ukf_mean_hist, ukf_Sigma_hist = ukf.filter(x0, sample_obs)
-    pf_mean_hist = particle_filter.filter(key_pf, x0, sample_obs, nsamples=4_000, Vinit=Vinit)
+    ukf_mean_hist, ukf_Sigma_hist = ukf_lib.filter(ukf, x0, sample_obs)
+    pf_mean_hist = b_lib.filter(particle_filter, key_pf, x0, sample_obs, nsamples=4_000, Vinit=Vinit)
 
     print("Filtering outlier data...")
-    _, ekf_perturbed_hist = ekf.filter(x0, sample_obs_noise, return_params=["mean", "cov"])
-    ekf_perturbed_mean_hist, ekf_Sigma_hist  = ekf_perturbed_hist["mean"], ekf_perturbed_hist["cov"]
-    ukf_perturbed_mean_hist, ukf_Sigma_hist = ukf.filter(x0, sample_obs_noise)
-    pf_perturbed_mean_hist = particle_filter.filter(key_pf, x0, sample_obs_noise, nsamples=2_000)
-
-    pf_estimate = fx_vmap(pf_mean_hist)
-    pf_perturbed_estimate = fx_vmap(pf_perturbed_mean_hist)
-    ground_truth = fx_vmap(sample_state)
+    _, ekf_perturbed_hist = ekf_lib.filter(model, x0, sample_obs_noise, return_params=["mean", "cov"])
+    ekf_perturbed_mean_hist, ekf_Sigma_hist = ekf_perturbed_hist["mean"], ekf_perturbed_hist["cov"]
+    ukf_perturbed_mean_hist, ukf_Sigma_hist = ukf_lib.filter(ukf, x0, sample_obs_noise)
+    pf_perturbed_mean_hist = b_lib.filter(particle_filter, key_pf, x0, sample_obs_noise, nsamples=2_000)
 
     ekf_estimate = fx_vmap(ekf_mean_hist)
     ukf_estimate = fx_vmap(ukf_mean_hist)
@@ -94,7 +92,6 @@ def main():
     ukf_perturbed_estimate = fx_vmap(ukf_perturbed_mean_hist)
     pf_perturbed_estimate = fx_vmap(pf_perturbed_mean_hist)
     ground_truth = fx_vmap(sample_state)
-
 
     dict_figures = {}
     # *** Plot results ***
@@ -112,17 +109,17 @@ def main():
 
     fig, ax = plt.subplots()
     plot_filter_true(ax, time, pf_perturbed_estimate, sample_obs_noise,
-                    ground_truth, "Bootstrap PF (noisy)", colors=colors)
+                     ground_truth, "Bootstrap PF (noisy)", colors=colors)
     dict_figures["pendulum_pf_noisy_1d_demo"] = fig
 
     fig, ax = plt.subplots()
     plot_filter_true(ax, time, ekf_perturbed_estimate, sample_obs_noise,
-                    ground_truth, "Extended KF (noisy)", colors=colors)
+                     ground_truth, "Extended KF (noisy)", colors=colors)
     dict_figures["pendulum_ekf_noisy_1d_demo"] = fig
 
     fig, ax = plt.subplots()
     plot_filter_true(ax, time, ukf_perturbed_estimate, sample_obs_noise,
-                    ground_truth, "Unscented KF (noisy)", colors=colors)
+                     ground_truth, "Unscented KF (noisy)", colors=colors)
     dict_figures["pendulum_ukf_noisy_1d_demo"] = fig
 
     return dict_figures
@@ -130,6 +127,7 @@ def main():
 
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     plt.rcParams["axes.spines.right"] = False
     plt.rcParams["axes.spines.top"] = False
     figures = main()
