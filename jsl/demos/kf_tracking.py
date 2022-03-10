@@ -4,7 +4,8 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
 from jsl.demos.plot_utils import plot_ellipse
-from jsl.lds.kalman_filter import KalmanFilter
+from jsl.lds.kalman_filter import LDS, smooth, filter
+
 
 def plot_tracking_values(observed, filtered, cov_hist, signal_label, ax):
     """
@@ -19,7 +20,7 @@ def plot_tracking_values(observed, filtered, cov_hist, signal_label, ax):
     """
     timesteps, _ = observed.shape
     ax.plot(observed[:, 0], observed[:, 1], marker="o", linewidth=0,
-             markerfacecolor="none", markeredgewidth=2, markersize=8, label="observed", c="tab:green")
+            markerfacecolor="none", markeredgewidth=2, markersize=8, label="observed", c="tab:green")
     ax.plot(*filtered[:, :2].T, label=signal_label, c="tab:red", marker="x", linewidth=2)
     for t in range(0, timesteps, 1):
         covn = cov_hist[t][:2, :2]
@@ -28,7 +29,7 @@ def plot_tracking_values(observed, filtered, cov_hist, signal_label, ax):
     ax.legend()
 
 
-def sample_filter_smooth(lds_model, key):
+def sample_filter_smooth(key, lds_model, timesteps):
     """
     Sample from a linear dynamical system, apply the kalman filter
     (forward pass), and performs smoothing.
@@ -58,9 +59,9 @@ def sample_filter_smooth(lds_model, key):
     * (Sigma_hist_smooth) array(timesteps, state_size, state_size)
         Smoothed covariances Sigmat
     """
-    z_hist, x_hist = lds_model.sample(key)
-    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = lds_model.filter(x_hist)
-    mu_hist_smooth, Sigma_hist_smooth = lds_model.smooth(mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
+    z_hist, x_hist = lds_model.sample(key, timesteps)
+    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = filter(lds_model, x_hist)
+    mu_hist_smooth, Sigma_hist_smooth = smooth(lds_model, mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
 
     return {
         "z_hist": z_hist,
@@ -99,8 +100,8 @@ def main():
     mu0 = jnp.array([8, 10, 1, 0]).astype(float)
     Sigma0 = jnp.eye(state_size) * 1.0
 
-    lds_instance = KalmanFilter(A, C, Q, R, mu0, Sigma0, timesteps)
-    result = sample_filter_smooth(lds_instance, key)
+    lds_instance = LDS(A, C, Q, R, mu0, Sigma0)
+    result = sample_filter_smooth(key, lds_instance, timesteps)
 
     l2_filter = jnp.linalg.norm(result["z_hist"][:, :2] - result["mu_hist"][:, :2], 2)
     l2_smooth = jnp.linalg.norm(result["z_hist"][:, :2] - result["mu_hist_smooth"][:, :2], 2)
@@ -111,9 +112,14 @@ def main():
     dict_figures = {}
 
     fig_truth, axs = plt.subplots()
-    axs.plot(result["x_hist"][:, 0], result["x_hist"][:, 1], marker="o", linewidth=0,
-         markerfacecolor="none", markeredgewidth=2, markersize=8, label="observed", c="tab:green")
-    axs.plot(result["z_hist"][:, 0], result["z_hist"][:, 1], linewidth=2, label="truth", marker="s", markersize=8)
+    axs.plot(result["x_hist"][:, 0], result["x_hist"][:, 1],
+             marker="o", linewidth=0, markerfacecolor="none",
+             markeredgewidth=2, markersize=8,
+             label="observed", c="tab:green")
+
+    axs.plot(result["z_hist"][:, 0], result["z_hist"][:, 1],
+             linewidth=2, label="truth",
+             marker="s", markersize=8)
     axs.legend()
     axs.axis("equal")
     dict_figures["kalman-tracking-truth"] = fig_truth
@@ -131,6 +137,7 @@ def main():
 
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     figures = main()
     savefig(figures)
     plt.show()

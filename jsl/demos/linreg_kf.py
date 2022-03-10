@@ -10,11 +10,12 @@
 # where Q>0 allows for parameter  drift.
 # We show that the result is equivalent to batch (offline) Bayesian inference.
 
+import jax.numpy as jnp
+
 import matplotlib.pyplot as plt
 from numpy.linalg import inv
-from jax.lax import scan
-import jax.numpy as jnp
-from jsl.lds.kalman_filter import KalmanFilter
+
+from jsl.lds.kalman_filter import LDS, kalman_filter
 
 
 def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
@@ -40,10 +41,10 @@ def kf_linreg(X, y, R, mu0, Sigma0, F, Q):
     * array(n_obs, dimension, dimension)
         Online estimation of uncertainty
     """
-    n_obs, dim = X.shape
     C = lambda t: X[t][None, ...]
-    kf = KalmanFilter(F, C, Q, R, mu0.copy(), Sigma0.copy(), timesteps=n_obs)
-    _, (mu_hist, Sigma_hist, _, _) = scan(kf.kalman_step, (mu0.copy(), Sigma0.copy(), 0), y)
+    lds = LDS(F, C, Q, R, mu0, Sigma0)
+
+    mu_hist, Sigma_hist, _, _ = kalman_filter(lds, y)
     return mu_hist, Sigma_hist
 
 

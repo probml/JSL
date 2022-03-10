@@ -3,13 +3,13 @@
 # Each of the missiles is then filtered and smoothed in parallel
 
 import jax.numpy as jnp
-from jsl.lds.kalman_filter import KalmanFilter
+from jsl.lds.kalman_filter import LDS, filter, smooth
 from jsl.demos.plot_utils import plot_ellipse
 import matplotlib.pyplot as plt
 from jax import random
 
 
-def sample_filter_smooth(key, lds_model, n_samples, noisy_init):
+def sample_filter_smooth(key, lds_model, nsteps, n_samples, noisy_init):
     """
     Sample from a linear dynamical system, apply the kalman filter
     (forward pass), and performs smoothing.
@@ -39,9 +39,9 @@ def sample_filter_smooth(key, lds_model, n_samples, noisy_init):
     * (Sigma_hist_smooth) array(n_samples, timesteps, state_size, state_size)
         Smoothed covariances Sigmat
     """
-    z_hist, x_hist = lds_model.sample(key, n_samples, noisy_init)
-    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = lds_model.filter(x_hist)
-    mu_hist_smooth, Sigma_hist_smooth = lds_model.smooth(mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
+    z_hist, x_hist = lds_model.sample(key, nsteps, n_samples, noisy_init)
+    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = filter(lds_model, x_hist)
+    mu_hist_smooth, Sigma_hist_smooth = smooth(lds_model, mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
 
     return {
         "z_hist": z_hist,
@@ -94,12 +94,12 @@ def main():
     mu0 = jnp.array([8, 10, 1, 0]).astype(float)
     Sigma0 = jnp.eye(state_size) * 0.1
 
-    n_samples = 4
-    n_steps = 15
 
     key = random.PRNGKey(3141)
-    lds_instance = KalmanFilter(A, C, Q, R, mu0, Sigma0, n_steps)
-    result = sample_filter_smooth(key, lds_instance, n_samples, True)
+    lds_instance = LDS(A, C, Q, R, mu0, Sigma0)
+
+    nsteps, n_samples = 15, 4
+    result = sample_filter_smooth(key, lds_instance, nsteps, n_samples, True)
 
     dict_figures = {}
 

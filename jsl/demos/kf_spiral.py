@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jsl.demos.plot_utils import plot_ellipse
 from jax import random
-from jsl.lds.kalman_filter import KalmanFilter
+from jsl.lds.kalman_filter import LDS, smooth, filter
 
 def plot_uncertainty_ellipses(means, covs, ax):
     timesteps = len(means)
@@ -33,13 +33,13 @@ def main():
     Q = jnp.eye(4) * 0.001
     R = jnp.eye(2) * 4
 
-    lds_instance = KalmanFilter(A, C, Q, R, mean_0, Sigma_0, timesteps)
-    state_hist, obs_hist = lds_instance.sample(key)
+    lds_instance = LDS(A, C, Q, R, mean_0, Sigma_0)
+    state_hist, obs_hist = lds_instance.sample(key, timesteps)
 
-    res = lds_instance.filter(obs_hist)
+    res = filter(lds_instance, obs_hist)
     mean_hist, Sigma_hist, mean_cond_hist, Sigma_cond_hist = res
-    mean_hist_smooth, Sigma_hist_smooth = lds_instance.smooth(mean_hist, Sigma_hist, mean_cond_hist,
-                                                                    Sigma_cond_hist)
+    mean_hist_smooth, Sigma_hist_smooth = smooth(lds_instance, mean_hist,
+                                                 Sigma_hist, mean_cond_hist, Sigma_cond_hist)
     
     dict_figures = {}
 
