@@ -9,6 +9,7 @@ BeliefState = NamedTuple
 Info = NamedTuple
 AgentInitFn = Callable
 
+
 class AgentUpdateFn(typing_extensions.Protocol):
 
   def __call__(belief: BeliefState,
