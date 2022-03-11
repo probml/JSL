@@ -8,7 +8,7 @@ import chex
 
 import os
 
-from jsl.sent.environments.sequential_data_env import classification_loss, regression_loss
+from jsl.seql.environments.sequential_data_env import classification_loss, regression_loss
 
 
 def collate_fn(batch):

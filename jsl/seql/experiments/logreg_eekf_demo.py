@@ -4,10 +4,12 @@ from jax.nn import sigmoid
 
 import matplotlib.pyplot as plt
 
+# Local imports
 from jsl.demos import logreg_biclusters as demo
-from jsl.sent.agents.eekf import EEKF
-from jsl.sent.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.sent.run import train
+from jsl.nlds.base import NLDS
+from jsl.seql.agents.eekf import eekf
+from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.seql.train import train
 
 
 figures, data = demo.main()
@@ -27,6 +29,22 @@ def make_biclusters_data_environment(train_batch_size,
                             test_batch_size,
                             classification=True)
     return env
+
+
+mean, cov = None, None
+
+def callback_fn(**kwargs):
+    global mean, cov
+
+    mu_hist = kwargs["info"].mu_hist
+    Sigma_hist = kwargs["info"].Sigma_hist
+
+    if mean is not None:
+        mean =jnp.vstack([mean, mu_hist])
+        cov =jnp.vstack([cov, Sigma_hist])
+    else:
+        mean = mu_hist
+        cov = Sigma_hist
 
 def main():
     X = data["X"]
@@ -60,14 +78,16 @@ def main():
     Pt = jnp.eye(M) * 0.0
     P0 = jnp.eye(M) * 2.0
 
-    agent = EEKF(fz, fx, Pt, Rt, mu_t, P0)
-    params, _ = train(agent, env, n_datapoints)
+    nlds = NLDS(fz, fx, Pt, Rt, mu_t, P0)
+    agent = eekf(nlds)
+    belief = agent.init_state(mu_t, P0)
+    unused_rewards = train(belief, agent, env, n_datapoints, callback_fn)
 
-    w_eekf_hist = params["mean"]
-    P_eekf_hist = params["cov"]
+    w_eekf_hist = mean
+    P_eekf_hist = cov
     
-    w_eekf = params["mean"][-1]
-    P_eekf = params["cov"][-1]
+    w_eekf = mean[-1]
+    P_eekf = cov[-1]
 
  
     ### *** Ploting surface predictive distribution ***

@@ -9,8 +9,8 @@ from typing import List, Tuple
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from jsl.sent.environments import base
-from jsl.sent.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.seql.environments import base
+from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
 
 class MLPClassificationEnsembleTest(parameterized.TestCase):
 

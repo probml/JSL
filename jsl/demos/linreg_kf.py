@@ -119,7 +119,7 @@ def main():
     ax.set_ylim(-8, 4)
     ax.set_xlim(-0.5, n_obs)
     dict_figures["linreg_online_kalman"] = fig
-
+    plt.savefig("prev.png")
     return dict_figures
 
 
