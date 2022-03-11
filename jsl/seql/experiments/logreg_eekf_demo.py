@@ -54,7 +54,7 @@ def main():
     Phispace = data["Phispace"]
     w_laplace = data["w_laplace"]
 
-    n_datapoints, _ = Phi.shape
+    n_datapoints, input_dim = Phi.shape
     colors = ["black" if el else "white" for el in y]
 
     # Predictive domain
@@ -73,10 +73,9 @@ def main():
                                             
 
     ### EEKF Approximation
-    M =  Phi.shape[-1]
-    mu_t = jnp.zeros(M)
-    Pt = jnp.eye(M) * 0.0
-    P0 = jnp.eye(M) * 2.0
+    mu_t = jnp.zeros(input_dim)
+    Pt = jnp.eye(input_dim) * 0.0
+    P0 = jnp.eye(input_dim) * 2.0
 
     nlds = NLDS(fz, fx, Pt, Rt, mu_t, P0)
     agent = eekf(nlds)

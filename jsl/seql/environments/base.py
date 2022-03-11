@@ -29,7 +29,7 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
                                             ntest: int,
                                             obs_noise: float=0.01,
                                             train_batch_size: int=1,
-                                            test_batch_size: int=128,
+                                            test_batch_size: int=1,
                                             x_generator: Callable=gaussian_sampler):
   nsamples = ntrain + ntest
   X = x_generator(key, (nsamples, 1))
@@ -44,8 +44,8 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
     noise = random.normal(key, (nsamples, 1)) * obs_noise
   Y = Phi @ w + noise
   
-  X_train = X[:ntrain]
-  X_test = X[ntrain:]
+  X_train = Phi[:ntrain]
+  X_test = Phi[ntrain:]
   y_train = Y[:ntrain]
   y_test = Y[ntrain:]
   
@@ -64,7 +64,7 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
                                             bias: float=0.0,
                                             obs_noise: float=0.0,
                                             train_batch_size: int=1,
-                                            test_batch_size: int=128,
+                                            test_batch_size: int=1,
                                             x_generator: Callable=gaussian_sampler):
     # https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/datasets/_samples_generator.py#L506
 
@@ -140,9 +140,9 @@ def make_classification_mlp_environment(key: chex.PRNGKey,
                                         ntest: int,
                                         temperature: float,
                                         hidden_layer_sizes: List[int],
-                                        train_batch_size=1,
-                                        test_batch_size=128,
-                                        x_generator=gaussian_sampler):
+                                        train_batch_size: int=1,
+                                        test_batch_size: int=1,
+                                        x_generator: Callable=gaussian_sampler):
 
     x_key, y_key = random.split(key)
     y_predictor = make_mlp(y_key,
@@ -187,7 +187,7 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
                                     temperature: float,
                                     hidden_layer_sizes: List[int],
                                     train_batch_size: int=1,
-                                    test_batch_size: int=128,
+                                    test_batch_size: int=1,
                                     x_generator=gaussian_sampler):
 
     x_key, y_key = random.split(key)
@@ -218,8 +218,8 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
 
 def make_environment_from_torch_dataset(dataset: Callable,
                                         classification: bool,
-                                        train_batch_size: int = 1,
-                                        test_batch_size: int = 128):
+                                        train_batch_size: int=1,
+                                        test_batch_size: int=1):
     env = SequentialTorchEnvironment(dataset,
                                     train_batch_size,
                                     test_batch_size,

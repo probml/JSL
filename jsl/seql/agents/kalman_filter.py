@@ -6,7 +6,7 @@ import chex
 from typing import NamedTuple
 
 from jsl.seql.agents.agent import Agent
-from jsl.lds.kalman_filter import LDS, filter
+from jsl.lds.kalman_filter import LDS, kalman_filter
 
 
 class BeliefState(NamedTuple):
@@ -35,7 +35,7 @@ def kalman_filter_reg(obs_noise: float = 1.):
         C = lambda t: x[t][None, ...]
 
         lds = LDS(F, C, Q, obs_noise, belief.mu, belief.Sigma)
-        mu_hist, Sigma_hist, _, _ = filter(lds, y)
+        mu_hist, Sigma_hist, _, _ = kalman_filter(lds, y)
 
         mu, Sigma = mu_hist[-1], Sigma_hist[-1]
 

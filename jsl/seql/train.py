@@ -1,6 +1,4 @@
 # Main function
-from jax import tree_map
-import jax.numpy as jnp
 
 def train(initial_belief_state, agent, env, nsteps, callback=None):
     #env.reset()

@@ -12,7 +12,7 @@ from absl.testing import parameterized
 from jsl.seql.environments import base
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
 
-class MLPClassificationEnsembleTest(parameterized.TestCase):
+class EnvironmentTest(parameterized.TestCase):
 
   @parameterized.parameters(itertools.product([3, 4], [(1, 10), (2, 20)]))
   def test_gaussian_sampler(self, seed: int, shape: Tuple):
@@ -53,18 +53,6 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
     self.assertEqual(env.y_test.shape, (ntest_batches, test_batch_size, output_dim))
     self.assertEqual(env.X_test.shape, (ntest_batches, test_batch_size, input_dim))
 
-
-  @parameterized.parameters(itertools.product([1, 3], [1, 3]))
-  def test_make_matlab_demo_environment(self,
-                                        train_batch_size: int,
-                                        test_batch_size: int):
-    ntrain, ntest = 21, 21
-    input_dim, output_dim = 2, 1
-    env = base.make_matlab_demo_environment(train_batch_size, test_batch_size)
-
-    self._check_seq_data_env_params(env, input_dim, output_dim,
-                                    ntrain, ntest, train_batch_size,
-                                    test_batch_size)
   
   @parameterized.parameters(itertools.product([0], [1, 3], [10], [10],  [1, 2], [1, 2]))
   def test_make_random_poly_regression_environment(self,
@@ -82,8 +70,8 @@ class MLPClassificationEnsembleTest(parameterized.TestCase):
                                                   train_batch_size=train_batch_size,
                                                   test_batch_size=test_batch_size)
 
-    input_dim, output_dim = 1, 1
-    self._check_seq_data_env_params(env, input_dim, output_dim,
+    output_dim = 1
+    self._check_seq_data_env_params(env, degree + 1, output_dim,
                                     ntrain, ntest, train_batch_size,
                                     test_batch_size)
   
