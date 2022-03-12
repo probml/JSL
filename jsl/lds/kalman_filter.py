@@ -4,13 +4,9 @@ import chex
 
 import jax.numpy as jnp
 from jax.random import multivariate_normal, split
-from jax.numpy.linalg import inv
+from jax.scipy.linalg import solve
 
 from jax import lax, vmap
-
-from tensorflow_probability.substrates import jax as tfp
-
-tfd = tfp.distributions
 
 from dataclasses import dataclass
 from typing import Union, Callable
@@ -160,7 +156,7 @@ def kalman_smoother(params: LDS,
     def smoother_step(state, elements):
         mut_giv_T, Sigmat_giv_T = state
         mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-        Jt = Sigmatt @ A.T @ inv(Sigmat_cond_next)
+        Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
         mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
         Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
         return (mut_giv_T, Sigmat_giv_T), (mut_giv_T, Sigmat_giv_T)
@@ -212,7 +208,7 @@ def kalman_filter(params: LDS, x_hist: chex.Array):
         # Sigman|{n-1}
         Sigman_cond = A @ Sigman @ A.T + Q
         St = params.observations(t) @ Sigman_cond @ params.observations(t).T + R
-        Kn = Sigman_cond @ params.observations(t).T @ inv(St)
+        Kn = solve(St, params.observations(t) @ Sigman_cond, sym_pos=True).T
 
         # mun|{n-1} and xn|{n-1}
         mu_update = A @ mun
