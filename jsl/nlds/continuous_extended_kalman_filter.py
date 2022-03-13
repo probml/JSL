@@ -121,7 +121,8 @@ def estimate(params: NLDS,
              sample_state: chex.Array,
              sample_obs: chex.Array,
              jump_size: int,
-             dt: float):
+             dt: float,
+             return_history: bool = True):
     """
     Run the Extended Kalman Filter algorithm over a set of observed samples.
 
@@ -131,6 +132,7 @@ def estimate(params: NLDS,
     sample_obs: array(nsamples, obs_size)
     jump_size: int
     dt: float
+    return_history: bool
 
     Returns
     -------
@@ -179,9 +181,11 @@ def estimate(params: NLDS,
         return (mu, V), (mu, V)
 
     initial_state = (mu_t.copy(), Vt.copy())
-    _, (mu_hist, V_hist) = lax.scan(step, initial_state, sample_obs[1:])
+    (mu, V), (mu_hist, V_hist) = lax.scan(step, initial_state, sample_obs[1:])
 
-    mu_hist = jnp.vstack([mu_t, mu_hist])
-    V_hist = jnp.vstack([Vt, V_hist])
+    if return_history:
+        mu_hist = jnp.vstack([mu_t, mu_hist])
+        V_hist = jnp.vstack([Vt, V_hist])
+        return mu_hist, V_hist
 
-    return mu_hist, V_hist
+    return mu, V

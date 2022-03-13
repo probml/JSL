@@ -34,12 +34,15 @@ def filter(params: NLDS,
            init_state: chex.Array,
            sample_obs: chex.Array,
            observations: List = None,
-           Vinit: chex.Array = None):
+           Vinit: chex.Array = None,
+           return_history: bool = True):
     """
     Run the Unscented Kalman Filter algorithm over a set of observed samples.
     Parameters
     ----------
     sample_obs: array(nsamples, obs_size)
+    return_history: bool
+        Whether to return the history of mu and Sigma values.
     Returns
     -------
     * array(nsamples, state_size)
@@ -109,9 +112,11 @@ def filter(params: NLDS,
 
         return (mu_t, Sigma_t), (mu_t, Sigma_t)
 
-    _, (mu_hist, Sigma_hist) = scan(filter_step, (initial_mu_t, initial_Sigma_t), sample_obs[1:])
+    (mu, Sigma), (mu_hist, Sigma_hist) = scan(filter_step, (initial_mu_t, initial_Sigma_t), sample_obs[1:])
 
     mu_hist = jnp.vstack([initial_mu_t[None, ...], mu_hist])
     Sigma_hist = jnp.vstack([initial_Sigma_t[None, ...], Sigma_hist])
 
-    return mu_hist, Sigma_hist
+    if return_history:
+        return mu_hist, Sigma_hist
+    return mu, Sigma

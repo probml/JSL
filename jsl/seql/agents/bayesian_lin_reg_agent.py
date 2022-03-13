@@ -4,13 +4,14 @@ import chex
 from dataclasses import dataclass
 from typing import NamedTuple, Tuple
 
-#Local imports
+# Local imports
 from jsl.seql.agents.agent import Agent
-from jsl.seql.agents.kalman_filter import BeliefState
+from jsl.seql.agents.kf_agent import BeliefState
 
 
 class Info(NamedTuple):
     ...
+
 
 @dataclass
 class Memory:
@@ -20,7 +21,7 @@ class Memory:
 
     def update(self,
                x: chex.Array,
-               y: chex.Array)->Tuple[chex.Array, chex.Array]:
+               y: chex.Array) -> Tuple[chex.Array, chex.Array]:
 
         if self.x is None:
             new_x, new_y = x, y
@@ -39,18 +40,17 @@ class Memory:
 
         return new_x, new_y
 
-def bayesian_reg(buffer_size: int, obs_noise: float=1.):
-    
+
+def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
     memory = Memory(buffer_size)
 
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
 
-    def update(belief:BeliefState,
+    def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -60,7 +60,7 @@ def bayesian_reg(buffer_size: int, obs_noise: float=1.):
         mu = Sigma @ (Sigma0_inv @ belief.mu + x_.T @ y_ / obs_noise)
 
         return BeliefState(mu, Sigma), Info()
-    
+
     def predict(belief: BeliefState,
                 x: chex.Array):
         return x @ belief.mu

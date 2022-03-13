@@ -20,7 +20,6 @@ class Info(NamedTuple):
 
 
 def kalman_filter_reg(obs_noise: float = 1.):
-
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
@@ -28,7 +27,6 @@ def kalman_filter_reg(obs_noise: float = 1.):
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
         _, input_dim = x.shape
 
         F, Q = jnp.eye(input_dim), 0
@@ -44,5 +42,5 @@ def kalman_filter_reg(obs_noise: float = 1.):
     def predict(belief: BeliefState,
                 x: chex.Array):
         return x @ belief.mu
-    
+
     return Agent(init_state, update, predict)

@@ -7,31 +7,36 @@ import matplotlib.pyplot as plt
 # Local imports
 from jsl.demos import logreg_biclusters as demo
 from jsl.nlds.base import NLDS
-from jsl.seql.agents.eekf import eekf
+from jsl.seql.agents.eekf_agent import eekf
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.train import train
-
+from jsl.seql.utils import train
 
 figures, data = demo.main()
 
+
 def fz(x): return x
+
+
 def fx(w, x): return sigmoid(w[None, :] @ x)
+
+
 def Rt(w, x): return (sigmoid(w @ x) * (1 - sigmoid(w @ x)))[None, None]
 
+
 def make_biclusters_data_environment(train_batch_size,
-                                    test_batch_size):
-    
+                                     test_batch_size):
     env = SequentialDataEnvironment(data["Phi"],
-                            data["y"].reshape((-1, 1)),
-                            data["Phi"],
-                            data["y"].reshape((-1, 1)),
-                            train_batch_size,
-                            test_batch_size,
-                            classification=True)
+                                    data["y"].reshape((-1, 1)),
+                                    data["Phi"],
+                                    data["y"].reshape((-1, 1)),
+                                    train_batch_size,
+                                    test_batch_size,
+                                    classification=True)
     return env
 
 
 mean, cov = None, None
+
 
 def callback_fn(**kwargs):
     global mean, cov
@@ -40,11 +45,12 @@ def callback_fn(**kwargs):
     Sigma_hist = kwargs["info"].Sigma_hist
 
     if mean is not None:
-        mean =jnp.vstack([mean, mu_hist])
-        cov =jnp.vstack([cov, Sigma_hist])
+        mean = jnp.vstack([mean, mu_hist])
+        cov = jnp.vstack([cov, Sigma_hist])
     else:
         mean = mu_hist
         cov = Sigma_hist
+
 
 def main():
     X = data["X"]
@@ -65,12 +71,10 @@ def main():
     _, nx, ny = Xspace.shape
     Phispace = jnp.concatenate([jnp.ones((1, nx, ny)), Xspace])
 
-
     train_batch_size = 1
     test_batch_size = 1
     env = make_biclusters_data_environment(train_batch_size,
-                                            test_batch_size)
-                                            
+                                           test_batch_size)
 
     ### EEKF Approximation
     mu_t = jnp.zeros(input_dim)
@@ -84,11 +88,10 @@ def main():
 
     w_eekf_hist = mean
     P_eekf_hist = cov
-    
+
     w_eekf = mean[-1]
     P_eekf = cov[-1]
 
- 
     ### *** Ploting surface predictive distribution ***
     colors = ["black" if el else "white" for el in y]
     dict_figures = {}
@@ -107,7 +110,7 @@ def main():
 
     ### Plot EEKF and Laplace training history
     P_eekf_hist_diag = jnp.diagonal(P_eekf_hist, axis1=1, axis2=2)
-    #P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
+    # P_laplace_diag = jnp.sqrt(jnp.diagonal(SN))
     lcolors = ["black", "tab:blue", "tab:red"]
     elements = w_eekf_hist.T, P_eekf_hist_diag.T, w_laplace, lcolors
     timesteps = jnp.arange(n_datapoints) + 1
@@ -125,13 +128,14 @@ def main():
         dict_figures[f"logistic_regression_hist_ekf_w{k}"] = fig_weight_k
 
     print("EEKF weights")
-    print(w_eekf, end="\n"*2)
-    
+    print(w_eekf, end="\n" * 2)
+
     return dict_figures
 
 
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig
+
     figs = main()
     savefig(figs)
     plt.show()

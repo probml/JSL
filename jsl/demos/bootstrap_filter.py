@@ -3,7 +3,7 @@
 
 import jax
 from jsl.nlds.base import NLDS
-from jsl.nlds.bootstrap_filter import BootstrapFilter
+from jsl.nlds.bootstrap_filter import filter
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from jax import random
@@ -48,8 +48,8 @@ def main():
 
     n_particles = 3_000
     fz_vec = jax.vmap(fz, in_axes=(0, None))
-    particle_filter = BootstrapFilter(lambda x: fz_vec(x, dt), fx, Qt, Rt)
-    pf_mean = particle_filter.filter(key, x0, sample_obs, n_particles)
+    particle_filter = NLDS(lambda x: fz_vec(x, dt), fx, Qt, Rt)
+    pf_mean = filter(particle_filter, key, x0, sample_obs, n_particles)
 
     dict_figures = {}
     fig_boostrap = plot_inference(sample_obs, pf_mean)

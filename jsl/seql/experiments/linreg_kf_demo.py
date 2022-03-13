@@ -6,29 +6,30 @@ from numpy.linalg import inv
 # Local imports
 from jsl.seql.environments.base import eveny_spaced_x_sampler
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.train import train
-from jsl.seql.agents.kalman_filter import kalman_filter_reg
+from jsl.seql.utils import train
+from jsl.seql.agents.kf_agent import kalman_filter_reg
 
 
-def make_matlab_demo_environment(train_batch_size: int= 1,
-                                test_batch_size: int=128):
-  # Data from original matlab example
-  # https://github.com/probml/pmtk3/blob/master/demos/linregOnlineDemoKalman.m
+def make_matlab_demo_environment(train_batch_size: int = 1,
+                                 test_batch_size: int = 128):
+    # Data from original matlab example
+    # https://github.com/probml/pmtk3/blob/master/demos/linregOnlineDemoKalman.m
 
-  max_val, N = 20., 21
-  X = eveny_spaced_x_sampler(max_val, N)
-  Y = jnp.array([2.4865, -0.3033, -4.0531, -4.3359,
-                -6.1742, -5.604, -3.5069, -2.3257,
-                -4.6377, -0.2327, -1.9858, 1.0284,
-                -2.264, -0.4508, 1.1672, 6.6524,
-                4.1452, 5.2677, 6.3403, 9.6264, 14.7842]).reshape((-1, 1))
-    
-  env = SequentialDataEnvironment(X, Y,
-                                X, Y,
-                                train_batch_size, test_batch_size,
-                                classification=False)
+    max_val, N = 20., 21
+    X = eveny_spaced_x_sampler(max_val, N)
+    Y = jnp.array([2.4865, -0.3033, -4.0531, -4.3359,
+                   -6.1742, -5.604, -3.5069, -2.3257,
+                   -4.6377, -0.2327, -1.9858, 1.0284,
+                   -2.264, -0.4508, 1.1672, 6.6524,
+                   4.1452, 5.2677, 6.3403, 9.6264, 14.7842]).reshape((-1, 1))
 
-  return env
+    env = SequentialDataEnvironment(X, Y,
+                                    X, Y,
+                                    train_batch_size, test_batch_size,
+                                    classification=False)
+
+    return env
+
 
 def posterior_lreg(X, y, R, mu0, Sigma0):
     Sn_bayes_inv = inv(Sigma0) + X.T @ X / R
@@ -40,6 +41,7 @@ def posterior_lreg(X, y, R, mu0, Sigma0):
 
 mean, cov = None, None
 
+
 def callback_fn(**kwargs):
     global mean, cov
 
@@ -47,17 +49,18 @@ def callback_fn(**kwargs):
     Sigma_hist = kwargs["info"].Sigma_hist
 
     if mean is not None:
-        mean =jnp.vstack([mean, mu_hist])
-        cov =jnp.vstack([cov, Sigma_hist])
+        mean = jnp.vstack([mean, mu_hist])
+        cov = jnp.vstack([cov, Sigma_hist])
     else:
         mean = mu_hist
         cov = Sigma_hist
 
-def main():    
+
+def main():
     env = make_matlab_demo_environment(test_batch_size=1)
 
     nsteps, _, input_dim = env.X_train.shape
-    
+
     mu0 = jnp.zeros(input_dim)
     Sigma0 = jnp.eye(input_dim) * 10.
 
@@ -97,6 +100,6 @@ def main():
     dict_figures["linreg_online_kalman"] = fig
     return dict_figures
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     main()
-    

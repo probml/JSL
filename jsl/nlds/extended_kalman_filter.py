@@ -12,7 +12,8 @@ def filter(params: NLDS,
            observations: chex.Array = None,
            Vinit: chex.Array = None,
            return_params: List = None,
-           eps: float = 0.001):
+           eps: float = 0.001,
+           return_history: bool = True):
     """
     Run the Extended Kalman Filter algorithm over a set of observed samples.
 
@@ -27,6 +28,8 @@ def filter(params: NLDS,
     return_params: list
         Parameters to carry from the filter step. Possible values are:
         "mean", "cov"
+    return_history: bool
+        Whether to return the history of mu and sigma obtained at each step
 
     Returns
     -------
@@ -97,4 +100,7 @@ def filter(params: NLDS,
 
     (mu_t, Vt, _), hist_elements = lax.scan(filter_step, state, xs)
 
-    return (mu_t, Vt), hist_elements
+    if return_history:
+        return (mu_t, Vt), hist_elements
+
+    return (mu_t, Vt), None
