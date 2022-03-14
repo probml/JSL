@@ -35,21 +35,20 @@ def make_biclusters_data_environment(train_batch_size,
     return env
 
 
-mean, cov = None, None
-
+mu_hist, sigma_hist = None, None
 
 def callback_fn(**kwargs):
-    global mean, cov
+    global mu_hist, sigma_hist
 
-    mu_hist = kwargs["info"].mu_hist
-    Sigma_hist = kwargs["info"].Sigma_hist
+    info = kwargs["info"]
+    
 
-    if mean is not None:
-        mean = jnp.vstack([mean, mu_hist])
-        cov = jnp.vstack([cov, Sigma_hist])
+    if mu_hist is not None:
+        mu_hist = jnp.vstack([mu_hist, info.mu_hist])
+        sigma_hist = jnp.vstack([sigma_hist, info.Sigma_hist])
     else:
-        mean = mu_hist
-        cov = Sigma_hist
+        mu_hist = info.mu_hist
+        sigma_hist = info.Sigma_hist
 
 
 def main():
@@ -82,15 +81,16 @@ def main():
     P0 = jnp.eye(input_dim) * 2.0
 
     nlds = NLDS(fz, fx, Pt, Rt, mu_t, P0)
-    agent = eekf(nlds)
+    agent = eekf(nlds, return_history=True)
     belief = agent.init_state(mu_t, P0)
-    unused_rewards = train(belief, agent, env, n_datapoints, callback_fn)
+    belief, unused_rewards = train(belief, agent, env,
+                                   n_datapoints, callback_fn)
 
-    w_eekf_hist = mean
-    P_eekf_hist = cov
+    w_eekf_hist = mu_hist
+    P_eekf_hist = sigma_hist
 
-    w_eekf = mean[-1]
-    P_eekf = cov[-1]
+    w_eekf = belief.mu
+    P_eekf = belief.Sigma
 
     ### *** Ploting surface predictive distribution ***
     colors = ["black" if el else "white" for el in y]

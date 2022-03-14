@@ -23,6 +23,42 @@ def eveny_spaced_x_sampler(max_val: float, num_samples: int, use_bias=True)->che
         X = X.reshape((-1, 1))
     return X
 
+
+def make_random_poly_classification_environment(key: chex.PRNGKey,
+                                                degree: int,
+                                                ntrain: int,
+                                                ntest: int,
+                                                nclasses:int = 2,
+                                                obs_noise: float=0.01,
+                                                train_batch_size: int=1,
+                                                test_batch_size: int=1,
+                                                x_generator: Callable=gaussian_sampler):
+  nsamples = ntrain + ntest
+  X = x_generator(key, (nsamples, 1))
+
+  poly = PolynomialFeatures(degree)
+  Phi = jnp.array(poly.fit_transform(X), dtype=jnp.float32)
+
+  D = Phi.shape[-1]
+  w = random.normal(key, (D, nclasses))
+
+  if obs_noise > 0.0:
+    noise = random.normal(key, (nsamples, 1)) * obs_noise
+
+  Y = jnp.argmax(Phi @ w + noise, axis=-1).reshape((-1, 1))
+  
+  X_train = Phi[:ntrain]
+  X_test = Phi[ntrain:]
+  y_train = Y[:ntrain]
+  y_test = Y[ntrain:]
+  
+  env = SequentialDataEnvironment(X_train, y_train,
+                                X_test, y_test,
+                                train_batch_size, test_batch_size,
+                                classification=True)
+  
+  return env
+
 def make_random_poly_regression_environment(key: chex.PRNGKey,
                                             degree: int,
                                             ntrain: int,
@@ -55,6 +91,46 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
                                 classification=False)
   
   return env
+
+def make_random_linear_classification_environment(key: chex.PRNGKey,
+                                            nfeatures: int,
+                                            ntrain: int,
+                                            ntest: int,
+                                            ntargets: int = 2,
+                                            bias: float=0.0,
+                                            obs_noise: float=0.0,
+                                            train_batch_size: int=1,
+                                            test_batch_size: int=1,
+                                            x_generator: Callable=gaussian_sampler):
+    # https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/datasets/_samples_generator.py#L506
+
+    nsamples = ntrain + ntest
+    # Randomly generate a well conditioned input set
+    x_key, w_key, noise_key = random.split(key, 3) 
+
+    X = x_generator(x_key, (nsamples, nfeatures))
+
+    # Generate a ground truth model with only n_informative features being non
+    # zeros (the other features are not correlated to y and should be ignored
+    # by a sparsifying regularizers such as L1 or elastic net)
+    ground_truth = 100 * random.normal(w_key, (nfeatures, ntargets))
+
+    Y = jnp.argmax(jnp.dot(X, ground_truth) + bias, axis=-1).reshape((-1, 1))
+
+    # Add noise
+    if obs_noise > 0.0:
+        Y += obs_noise * random.normal(noise_key, size=Y.shape)
+
+    X_train = X[:ntrain]
+    X_test = X[ntrain:]
+    y_train = Y[:ntrain]
+    y_test = Y[ntrain:]
+
+    env = SequentialDataEnvironment(X_train, y_train,
+                                    X_test, y_test,
+                                    train_batch_size, test_batch_size,
+                                    classification=False)
+    return env
 
 def make_random_linear_regression_environment(key: chex.PRNGKey,
                                             nfeatures: int,

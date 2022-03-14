@@ -7,23 +7,23 @@ from jsl.seql.agents.bayesian_lin_reg_agent import bayesian_reg
 from jsl.seql.utils import train
 from jsl.seql.agents.kf_agent import kalman_filter_reg
 from jsl.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
-from jsl.demos.linreg_kf import kf_linreg
+from jsl.seql.experiments.experiment_utils import posterior_predictive_distribution
 
-mean, cov = None, None
+kf_mean, kf_cov = None, None
 
 
 def callback_fn(**kwargs):
-    global mean, cov
+    global kf_mean, kf_cov
 
     mu_hist = kwargs["info"].mu_hist
     Sigma_hist = kwargs["info"].Sigma_hist
 
-    if mean is not None:
-        mean = jnp.vstack([mean, mu_hist])
-        cov = jnp.vstack([cov, Sigma_hist])
+    if kf_mean is not None:
+        kf_mean = jnp.vstack([kf_mean, mu_hist])
+        kf_cov = jnp.vstack([kf_cov, Sigma_hist])
     else:
-        mean = mu_hist
-        cov = Sigma_hist
+        kf_mean = mu_hist
+        kf_cov = Sigma_hist
 
 
 bayes_mean, bayes_cov = None, None
@@ -45,7 +45,7 @@ def bayes_callback_fn(**kwargs):
 
 class BayesLinRegTest(absltest.TestCase):
 
-    def test_kalman_filter(self):
+    def test_kf_vs_bayes_on_matlab_demo(self):
         env = make_matlab_demo_environment(test_batch_size=1)
 
         nsteps, _, input_dim = env.X_train.shape
@@ -69,9 +69,8 @@ class BayesLinRegTest(absltest.TestCase):
         _, unused_rewards = train(belief, agent, env,
                                   nsteps=1, callback=bayes_callback_fn)
 
-        assert jnp.allclose(jnp.squeeze(mean[-1]), jnp.squeeze(bayes_mean), atol=1e-1)
-        assert jnp.allclose(cov[-1], bayes_cov, atol=1e-1)
-
+        assert jnp.allclose(jnp.squeeze(kf_mean[-1]), jnp.squeeze(bayes_mean), atol=1e-1)
+        assert jnp.allclose(kf_cov[-1], bayes_cov, atol=1e-1)
 
 if __name__ == '__main__':
     absltest.main()

@@ -8,11 +8,11 @@ def train(initial_belief_state, agent, env, nsteps, callback=None):
 
     for t in range(nsteps):
         X_train, Y_train, X_test, Y_test = env.get_data(t)
-        
+
         belief_state, info = agent.update(belief_state, X_train, Y_train)
         
-        Y_pred = agent.predict(belief_state, X_test)
-        reward = env.reward(Y_pred, Y_test)
+        preds = agent.predict(belief_state, X_test)
+        reward = env.reward(*preds, Y_test)
 
         if callback:
             if not isinstance(callback, list):
@@ -25,10 +25,11 @@ def train(initial_belief_state, agent, env, nsteps, callback=None):
                   info=info,
                   X_train=X_train,
                   Y_train=Y_train,
-                  X_test=Y_test,
-                  Y_pred=Y_pred,
-                  reward=reward)
-
+                  X_test=X_test,
+                  Y_test=Y_test,
+                  preds=preds,
+                  reward=reward,
+                  t=t)
         print(f"Time {t + 1}, Reward: {reward}")
         rewards.append(reward)
         
