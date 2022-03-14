@@ -1,4 +1,6 @@
 # EEKF agent
+import jax.numpy as jnp
+
 import chex
 from typing import List
 
@@ -9,7 +11,9 @@ from jsl.seql.agents.kf_agent import BeliefState, Info
 
 
 def eekf(nlds: NLDS,
-         return_params: List[str] = ["mean", "cov"]):
+         return_params: List[str] = ["mean", "cov"],
+         return_history: bool = False,
+         obs_noise: float = 1.):
 
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
@@ -20,12 +24,17 @@ def eekf(nlds: NLDS,
                y: chex.Array):
         (mu, Sigma), history = filter(nlds, belief.mu,
                                       y, x, belief.Sigma,
-                                      return_params)
-
-        return BeliefState(mu, Sigma), Info(history["mean"], history["cov"])
+                                      return_params,
+                                      return_history=return_history)
+        if return_history:
+            return BeliefState(mu, Sigma), Info(history["mean"], history["cov"])
+        
+        return BeliefState(mu, Sigma), Info()
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-        return x @ belief.mu
+        
+        d, *_ = x.shape
+        return x @ belief.mu, obs_noise * jnp.eye(d)
 
     return Agent(init_state, update, predict)

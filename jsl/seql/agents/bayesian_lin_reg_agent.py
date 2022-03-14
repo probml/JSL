@@ -63,6 +63,7 @@ def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-        return x @ belief.mu
+        d, *_ = x.shape
+        return x @ belief.mu, obs_noise * jnp.eye(d)
 
     return Agent(init_state, update, predict)

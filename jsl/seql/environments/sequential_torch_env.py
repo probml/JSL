@@ -1,3 +1,4 @@
+from typing import Any
 import jax.numpy as jnp
 import numpy as np
 
@@ -11,7 +12,7 @@ import os
 from jsl.seql.environments.sequential_data_env import classification_loss, regression_loss
 
 
-def collate_fn(batch):
+def collate_fn(batch: Any):
     if isinstance(batch[0], jnp.ndarray):
         return jnp.stack(batch)
     elif isinstance(batch[0], (tuple, list)):
@@ -77,6 +78,9 @@ class SequentialTorchEnvironment:
         
     return X_train, y_train, X_test, y_test
 
-  def reward(self, y_pred: chex.Array, y_test: chex.Array):
-    loss = self.loss_fn(y_pred, y_test)
+  def reward(self,
+             mu_pred: chex.Array,
+             sigma_pred: chex.Array,
+             y_test: chex.Array):
+    loss = self.loss_fn(mu_pred, sigma_pred, y_test)
     return loss

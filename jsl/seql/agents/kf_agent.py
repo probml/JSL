@@ -15,11 +15,12 @@ class BeliefState(NamedTuple):
 
 
 class Info(NamedTuple):
-    mu_hist: chex.Array
-    Sigma_hist: chex.Array
+    mu_hist: chex.Array = None
+    Sigma_hist: chex.Array = None
 
 
-def kalman_filter_reg(obs_noise: float = 1.):
+def kalman_filter_reg(obs_noise: float = 1.,
+                      return_history: bool = False):
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
@@ -33,14 +34,18 @@ def kalman_filter_reg(obs_noise: float = 1.):
         C = lambda t: x[t][None, ...]
 
         lds = LDS(F, C, Q, obs_noise, belief.mu, belief.Sigma)
-        mu_hist, Sigma_hist, _, _ = kalman_filter(lds, y)
-
-        mu, Sigma = mu_hist[-1], Sigma_hist[-1]
-
-        return BeliefState(mu, Sigma), Info(mu_hist, Sigma_hist)
+        mu, Sigma, _, _ = kalman_filter(lds, y,
+                                        return_history=return_history)
+        if return_history:
+            history = (mu, Sigma)
+            mu, Sigma = mu[-1], Sigma[-1]
+            return BeliefState(mu, Sigma), Info(*history)
+        
+        return BeliefState(mu, Sigma), Info()
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-        return x @ belief.mu
+        d, *_ = x.shape
+        return x @ belief.mu, obs_noise * jnp.eye(d)
 
     return Agent(init_state, update, predict)

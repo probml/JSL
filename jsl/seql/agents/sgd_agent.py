@@ -1,5 +1,6 @@
 import optax
 
+import jax.numpy as jnp
 from jax import jit, value_and_grad
 
 import chex
@@ -20,7 +21,8 @@ class TraceState(NamedTuple):
 
 
 class LossFn(typing_extensions.Protocol):
-    def __call__(params: Params,
+    def __call__(self,
+                 params: Params,
                  x: chex.Array,
                  y: chex.Array) -> float:
         ...
@@ -35,9 +37,10 @@ class Info(NamedTuple):
     loss: float
 
 
-def sgd(loss_fn: LossFn,
-        model_fn: Callable,
-        optimizer: Optimizer = optax.adam(1e-2)):
+def sgd_agent(loss_fn: LossFn,
+              model_fn: Callable,
+              optimizer: Optimizer = optax.adam(1e-2),
+              obs_noise: float = 0.01):
     
     value_and_grad_fn = jit(value_and_grad(loss_fn))
 
@@ -52,7 +55,6 @@ def sgd(loss_fn: LossFn,
         params = belief.params 
         opt_state = belief.opt_state
         loss, grads = value_and_grad_fn(params, x, y)
-
         updates, opt_state = optimizer.update(grads, opt_state)
 
         return BeliefState(updates, opt_state), Info(loss)
@@ -62,6 +64,9 @@ def sgd(loss_fn: LossFn,
             x: chex.Array): 
     
         params = belief.params
-        return model_fn(params, x)
+        mu_pred = model_fn(params, x)
+        d, *_ = mu_pred.shape
+        sigma_pred = obs_noise * jnp.eye(d)
+        return (mu_pred, sigma_pred)
 
     return Agent(init_state, update, predict)

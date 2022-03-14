@@ -10,7 +10,8 @@ AgentInitFn = Callable
 
 class AgentUpdateFn(typing_extensions.Protocol):
 
-    def __call__(belief: BeliefState,
+    def __call__(self,
+                 belief: BeliefState,
                  x: chex.Array,
                  y: chex.Array) -> Tuple[BeliefState, Info]:
         '''
@@ -21,7 +22,8 @@ class AgentUpdateFn(typing_extensions.Protocol):
 
 class AgentPredictFn(typing_extensions.Protocol):
 
-    def __call__(belief: BeliefState,
+    def __call__(self,
+                 belief: BeliefState,
                  x: chex.Array) -> chex.Array:
         '''
         It predicts the outputs of x using the current belief state.

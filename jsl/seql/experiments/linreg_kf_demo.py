@@ -6,6 +6,7 @@ from numpy.linalg import inv
 # Local imports
 from jsl.seql.environments.base import eveny_spaced_x_sampler
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.seql.experiments.experiment_utils import posterior_predictive_distribution
 from jsl.seql.utils import train
 from jsl.seql.agents.kf_agent import kalman_filter_reg
 
@@ -39,22 +40,45 @@ def posterior_lreg(X, y, R, mu0, Sigma0):
     return mn_bayes, Sn_bayes
 
 
-mean, cov = None, None
+mu_hist, sigma_hist = None, None
 
+def save_history(**kwargs):
+    global mu_hist, sigma_hist
 
-def callback_fn(**kwargs):
-    global mean, cov
+    info = kwargs["info"]
 
-    mu_hist = kwargs["info"].mu_hist
-    Sigma_hist = kwargs["info"].Sigma_hist
-
-    if mean is not None:
-        mean = jnp.vstack([mean, mu_hist])
-        cov = jnp.vstack([cov, Sigma_hist])
+    if mu_hist is not None:
+        mu_hist = jnp.vstack([mu_hist, info.mu_hist])
+        sigma_hist = jnp.vstack([sigma_hist, info.Sigma_hist])
     else:
-        mean = mu_hist
-        cov = Sigma_hist
+        mu_hist = info.mu_hist
+        sigma_hist = info.Sigma_hist
 
+dict_figures = {}
+timesteps = [5, 10, 15, 20]
+
+def plot_ppd(**kwargs):
+    global x, dict_figures, timesteps
+
+    belief = kwargs["belief_state"]
+    t = kwargs["t"]
+
+    X_test = jnp.squeeze(kwargs["X_test"])
+    y_test = jnp.squeeze(kwargs["Y_test"])
+    if t in timesteps:
+        m, s = posterior_predictive_distribution(X_test,
+                                                belief.mu,
+                                                belief.Sigma,
+                                                obs_noise=0.01)
+        fig, ax = plt.subplots()
+        ax.scatter(X_test[:t+1, 1], y_test[:t+1], s=140,
+                facecolors='none', edgecolors='r',
+                label='training data')
+        
+        ax.errorbar(X_test[:, 1], m, yerr=s)
+        ax.set_title(f"Posterior Predictive Distribution(t={t})")
+        dict_figures[f"ppd_{t}"] = fig
+        # plt.savefig(f"ppd_{t}.png")
 
 def main():
     env = make_matlab_demo_environment(test_batch_size=1)
@@ -65,13 +89,14 @@ def main():
     Sigma0 = jnp.eye(input_dim) * 10.
 
     obs_noise = 1
-    agent = kalman_filter_reg(obs_noise)
+    agent = kalman_filter_reg(obs_noise, return_history=True)
     belief = agent.init_state(mu0, Sigma0)
 
-    unused_rewards = train(belief, agent, env, nsteps=nsteps, callback=callback_fn)
+    callback_fns = [save_history, plot_ppd]
+    belief, unused_rewards = train(belief, agent, env, nsteps=nsteps, callback=callback_fns)
 
-    w0_hist, w1_hist = mean.T
-    w0_err, w1_err = jnp.sqrt(cov[:, [0, 1], [0, 1]].T)
+    w0_hist, w1_hist = mu_hist.T
+    w0_err, w1_err = jnp.sqrt(sigma_hist[:, [0, 1], [0, 1]].T)
 
     # Offline estimation
     (w0_post, w1_post), Sigma_post = posterior_lreg(jnp.squeeze(env.X_train),
@@ -79,8 +104,6 @@ def main():
                                                     obs_noise, mu0, Sigma0)
 
     w0_std, w1_std = jnp.sqrt(Sigma_post[[0, 1], [0, 1]])
-
-    dict_figures = {}
 
     timesteps = jnp.arange(nsteps)
     fig, ax = plt.subplots()
