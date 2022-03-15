@@ -6,7 +6,7 @@ from numpy.linalg import inv
 # Local imports
 from jsl.seql.environments.base import eveny_spaced_x_sampler
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.experiments.experiment_utils import posterior_predictive_distribution
+from jsl.seql.utils import posterior_predictive_distribution
 from jsl.seql.utils import train
 from jsl.seql.agents.kf_agent import kalman_filter_reg
 

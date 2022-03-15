@@ -9,7 +9,7 @@ import chex
 
 import os
 
-from jsl.seql.environments.sequential_data_env import classification_loss, regression_loss
+from jsl.seql.utils import classification_loss, regression_loss
 
 
 def collate_fn(batch: Any):
@@ -44,13 +44,13 @@ class SequentialTorchEnvironment:
     self.train_dataloader = torch.utils.data.DataLoader(self.train_data,
                                          batch_size=train_batch_size, 
                                          collate_fn=collate_fn,
-                                         num_workers=0,)
+                                         num_workers=0)
 
     self.test_data = TorchDataset(dataset, train=False)
     self.test_dataloader = torch.utils.data.DataLoader(self.test_data,
                                          batch_size=test_batch_size, 
                                          collate_fn=collate_fn,
-                                         num_workers=0,)
+                                         num_workers=0)
     
     self.train_data_iterator = iter(self.train_dataloader)
     self.test_data_iterator = iter(self.test_dataloader)
@@ -82,5 +82,5 @@ class SequentialTorchEnvironment:
              mu_pred: chex.Array,
              sigma_pred: chex.Array,
              y_test: chex.Array):
-    loss = self.loss_fn(mu_pred, sigma_pred, y_test)
-    return loss
+    loss = self.loss_fn(y_test, mu_pred, sigma_pred)
+    return -loss

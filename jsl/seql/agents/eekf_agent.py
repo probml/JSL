@@ -1,14 +1,14 @@
 # EEKF agent
-import jax.numpy as jnp
+from jax import vmap
 
 import chex
 from typing import List
 
-from jsl.seql.agents.agent import Agent
+from jsl.seql.agents.base import Agent
 from jsl.nlds.base import NLDS
 from jsl.nlds.extended_kalman_filter import filter
 from jsl.seql.agents.kf_agent import BeliefState, Info
-
+from jsl.seql.utils import posterior_noise
 
 def eekf(nlds: NLDS,
          return_params: List[str] = ["mean", "cov"],
@@ -33,8 +33,8 @@ def eekf(nlds: NLDS,
 
     def predict(belief: BeliefState,
                 x: chex.Array):
+        v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
+        noise = v_posterior_noise(x, belief.Sigma, obs_noise)
+        return x @ belief.mu, noise
         
-        d, *_ = x.shape
-        return x @ belief.mu, obs_noise * jnp.eye(d)
-
     return Agent(init_state, update, predict)

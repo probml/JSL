@@ -11,7 +11,7 @@ import typing_extensions
 from typing import Any, NamedTuple, Union
 from functools import partial
 
-from jsl.seql.agents.agent import Agent
+from jsl.seql.agents.base import Agent
 from jsl.seql.agents.bfgs_agent import ModelFn
 
 

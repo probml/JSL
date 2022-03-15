@@ -1,11 +1,13 @@
 # Kalman filter agent
 
 import jax.numpy as jnp
+from jax import vmap
 
 import chex
 from typing import NamedTuple
 
-from jsl.seql.agents.agent import Agent
+from jsl.seql.agents.base import Agent
+from jsl.seql.utils import posterior_noise
 from jsl.lds.kalman_filter import LDS, kalman_filter
 
 
@@ -45,7 +47,10 @@ def kalman_filter_reg(obs_noise: float = 1.,
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-        d, *_ = x.shape
-        return x @ belief.mu, obs_noise * jnp.eye(d)
+        v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
+        noise = v_posterior_noise(x, belief.Sigma, obs_noise)
+        noise = jnp.diag(jnp.squeeze(noise))
+        
+        return x @ belief.mu, noise
 
     return Agent(init_state, update, predict)

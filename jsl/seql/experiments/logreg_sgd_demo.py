@@ -8,10 +8,14 @@ import seaborn as sns
 from sklearn.datasets import make_moons
 
 from jsl.seql.agents.sgd_agent import sgd_agent
-from jsl.seql.experiments.experiment_utils import MLP, cross_entropy_loss
+from jsl.seql.utils import MLP, classification_loss
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
 from jsl.seql.utils import train
 
+def loss_fn(params, inputs, labels, predict_fn):
+  logprobs = predict_fn(params, inputs)
+  loss = classification_loss(labels, logprobs)
+  return loss
 
 cmap = sns.diverging_palette(250, 12, s=85, l=25, as_cmap=True)
 
@@ -19,7 +23,7 @@ cmap = sns.diverging_palette(250, 12, s=85, l=25, as_cmap=True)
 def plot_decision_surface(belief, X, y, apply_fn):
     fig, ax = plt.subplots(figsize=(15, 12))
     grid = jnp.mgrid[-3:3:100j, -3:3:100j].reshape((2, -1)).T
-    print(grid.shape)
+
     preds = apply_fn(belief.params, grid)
     ax.contourf(grid[:, 0].reshape(100, 100),
                 grid[:, 1].reshape(100, 100),
@@ -63,13 +67,14 @@ def make_moons_env(ntrain: int,
 
 def main():
     key = random.PRNGKey(0)
-    ntrain, ntest = 80, 20
-    noise = 0.2
+    ntrain, ntest = 8000, 200
+    noise = 1.
     nfeatures, nclasses = 2, 2
-    env = make_moons_env(ntrain, ntest, noise=noise)
+    batch_size = 64
+    env = make_moons_env(ntrain, ntest, noise=noise, train_batch_size=batch_size)
     
     model = MLP(nclasses)
-    partial_cross_entropy_loss = partial(cross_entropy_loss,
+    partial_cross_entropy_loss = partial(loss_fn,
                                          predict_fn=model.apply)
     agent = sgd_agent(partial_cross_entropy_loss,
                       model.apply,
@@ -78,7 +83,7 @@ def main():
     variables = model.init(key, batch)
     belief = agent.init_state(variables)
 
-    nsteps = 20
+    nsteps = 125
     belief, _ = train(belief, agent, env, nsteps)
 
     plot_decision_surface(belief,

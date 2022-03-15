@@ -1,12 +1,13 @@
-import typing_extensions
 import jax.numpy as jnp
+from jax import vmap
 from jax.scipy.optimize import minimize
 
+import chex
+import typing_extensions
 from typing import NamedTuple
 
-import chex
-from jsl.seql.agents.agent import Agent
-
+from jsl.seql.agents.base import Agent
+from jsl.seql.utils import posterior_noise
 
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,
@@ -73,8 +74,12 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
     
     def predict(belief: BeliefState,
                 x: chex.Array):
-        
-        d, *_ = x.shape
-        return model_fn(belief.x, x), obs_noise * jnp.eye(d)
+        try:
+            v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
+            noise = v_posterior_noise(x, belief.Sigma, obs_noise)
+        except:
+            d, *_ = x.shape
+            noise = obs_noise * jnp.eye(d)
+        return model_fn(belief.x, x), noise
 
     return Agent(init_state, update, predict)

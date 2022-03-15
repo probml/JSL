@@ -1,25 +1,10 @@
 import jax.numpy as jnp
-from jax import random, nn
-from jax.scipy.stats import multivariate_normal
+from jax import random
 
 import chex
 
-def classification_loss(logprobs: chex.Array,
-                        noise: chex.Array,
-                        targets: chex.Array):
-  nclasses = logprobs.shape[-1]
-  one_hot_targets = nn.one_hot(targets, nclasses, axis=-1)
-  nll = jnp.sum(logprobs * one_hot_targets, axis=-1)
-  ce = -jnp.mean(nll)
-  return ce
+from jsl.seql.utils import classification_loss, regression_loss
 
-def regression_loss(mu_pred: chex.Array,
-                    sigma_pred: chex.Array,
-                    outputs: chex.Array):
-  ll = multivariate_normal.logpdf(outputs,
-                                  jnp.squeeze(mu_pred),
-                                  sigma_pred)
-  return -jnp.mean(ll) 
 
 class SequentialDataEnvironment:
   def __init__(self, X_train: chex.Array,
@@ -56,7 +41,7 @@ class SequentialDataEnvironment:
                    sigma_pred: chex.Array,
                    y_test: chex.Array):
                    
-    loss = self.loss_fn(mu_pred, sigma_pred, y_test)
+    loss = self.loss_fn(y_test, mu_pred, sigma_pred)
     return -loss
   
   def shuffle_data(self, key: chex.PRNGKey):

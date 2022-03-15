@@ -7,7 +7,7 @@ import chex
 import typing_extensions
 from typing import Any, Callable, NamedTuple
 
-from jsl.seql.agents.agent import Agent
+from jsl.seql.agents.base import Agent
 
 
 Params = Any
@@ -56,8 +56,8 @@ def sgd_agent(loss_fn: LossFn,
         opt_state = belief.opt_state
         loss, grads = value_and_grad_fn(params, x, y)
         updates, opt_state = optimizer.update(grads, opt_state)
-
-        return BeliefState(updates, opt_state), Info(loss)
+        params = optax.apply_updates(params, updates)
+        return BeliefState(params, opt_state), Info(loss)
 
 
     def predict(belief: BeliefState,
@@ -67,6 +67,6 @@ def sgd_agent(loss_fn: LossFn,
         mu_pred = model_fn(params, x)
         d, *_ = mu_pred.shape
         sigma_pred = obs_noise * jnp.eye(d)
-        return (mu_pred, sigma_pred)
+        return mu_pred, sigma_pred
 
     return Agent(init_state, update, predict)
