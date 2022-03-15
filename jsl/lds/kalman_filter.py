@@ -1,5 +1,10 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
+
+
+from jax import config
+config.update('jax_default_matmul_precision', 'float32')
+
 import chex
 
 import jax.numpy as jnp
@@ -149,10 +154,7 @@ def kalman_smoother(params: LDS,
     * array(timesteps, state_size, state_size)
         Smoothed covariances Sigmat
     """
-    timesteps, _ = mu_hist.shape
-
     A = params.A
-    state_size, _ = A.shape
 
     mut_giv_T = mu_hist[-1, :]
     Sigmat_giv_T = Sigma_hist[-1, :]
@@ -178,6 +180,7 @@ def kalman_smoother(params: LDS,
 
     return mu_hist_smooth, Sigma_hist_smooth
 
+        
 
 def kalman_filter(params: LDS, x_hist: chex.Array,
                   return_history: bool = True):
@@ -205,26 +208,39 @@ def kalman_filter(params: LDS, x_hist: chex.Array,
         Filtered conditional covariances Sigmat|t-1
     """
     A, Q, R = params.A, params.Q, params.R
+
     state_size, _ = A.shape
     I = jnp.eye(state_size)
 
+
+    def predict_step(mu, Sigma):
+        # \Sigma_{t|t-1}
+        Sigman_cond = A @ Sigma @ A.T + Q
+
+        # \mu_{t |t-1} and xn|{n-1}
+        mu_cond = A @ mu
+        
+        return mu_cond, Sigman_cond
+
     def kalman_step(state, obs):
-        mun, Sigman, t = state
+        mu, Sigma, t = state
+        
+        mu_cond, Sigma_cond = predict_step(mu, Sigma)
+        Ct = params.observations(t)
 
-        # Sigman|{n-1}
-        Sigman_cond = A @ Sigman @ A.T + Q
-        St = params.observations(t) @ Sigman_cond @ params.observations(t).T + R
-        Kn = Sigman_cond @ params.observations(t).T @ inv(St)
+        St = Ct @ Sigma_cond @ Ct.T + R
+        Kt = Sigma_cond @ Ct.T @ inv(St)
+        
+        et = obs - Ct @ mu_cond
+        mu = mu_cond + Kt @ et
 
-        # mun|{n-1} and xn|{n-1}
-        mu_update = A @ mun
-        x_update = params.observations(t) @ mu_update
+        #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
+        tmp = (I - Kt @ Ct)
+        Sigma = tmp @ Sigma_cond @ tmp.T +  Kt @ (R * Kt.T)
 
-        mun = mu_update + Kn @ (obs - x_update)
-        Sigman = (I - Kn @ params.observations(t)) @ Sigman_cond
         t = t + 1
 
-        return (mun, Sigman, t), (mun, Sigman, mu_update, Sigman_cond)
+        return (mu, Sigma, t), (mu, Sigma, mu_cond, Sigma_cond)
 
     mu0, Sigma0 = params.mu, params.Sigma
     initial_state = (mu0, Sigma0, 0)

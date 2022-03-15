@@ -1,3 +1,6 @@
+from jax import config
+config.update('jax_default_matmul_precision', 'float32')
+
 import jax.numpy as jnp
 from jax import vmap
 
@@ -14,7 +17,6 @@ from jsl.seql.utils import posterior_noise
 class Info(NamedTuple):
     ...
 
-
 @dataclass
 class Memory:
     buffer_size: int
@@ -24,13 +26,14 @@ class Memory:
     def update(self,
                x: chex.Array,
                y: chex.Array) -> Tuple[chex.Array, chex.Array]:
-
-        if self.x is None:
+        
+        if self.x is None or self.buffer_size == len(x):
             new_x, new_y = x, y
         else:
             n = len(x) + len(self.x)
+
             if self.buffer_size < n:
-                nprev = n - self.buffer_size
+                nprev = self.buffer_size - len(x)
                 new_x = jnp.vstack([self.x[-nprev:], x])
                 new_y = jnp.vstack([self.y[-nprev:], y])
             else:
@@ -55,9 +58,9 @@ def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
                y: chex.Array):
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
-
+        print(x_.shape, y_.shape)
         Sigma0_inv = jnp.linalg.inv(belief.Sigma)
-        Sigma_inv = Sigma0_inv + x_.T @ x_ / obs_noise
+        Sigma_inv = Sigma0_inv + (x_.T @ x_) / obs_noise
         Sigma = jnp.linalg.inv(Sigma_inv)
         mu = Sigma @ (Sigma0_inv @ belief.mu + x_.T @ y_ / obs_noise)
         return BeliefState(mu, Sigma), Info()

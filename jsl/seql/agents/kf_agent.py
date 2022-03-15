@@ -32,10 +32,10 @@ def kalman_filter_reg(obs_noise: float = 1.,
                y: chex.Array):
         _, input_dim = x.shape
 
-        F, Q = jnp.eye(input_dim), 0
+        A, Q = jnp.eye(input_dim), 0
         C = lambda t: x[t][None, ...]
 
-        lds = LDS(F, C, Q, obs_noise, belief.mu, belief.Sigma)
+        lds = LDS(A, C, Q, obs_noise, belief.mu, belief.Sigma)
         mu, Sigma, _, _ = kalman_filter(lds, y,
                                         return_history=return_history)
         if return_history:
