@@ -43,7 +43,7 @@ def kalman_filter_reg(obs_noise: float = 1.,
             mu, Sigma = mu[-1], Sigma[-1]
             return BeliefState(mu, Sigma), Info(*history)
         
-        return BeliefState(mu, Sigma), Info()
+        return BeliefState(mu.reshape((-1, 1)), Sigma), Info()
 
     def predict(belief: BeliefState,
                 x: chex.Array):

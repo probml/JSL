@@ -1,10 +1,11 @@
 """Tests for jsl.sent.agents.bayesian_linear_regression"""
 import jax.numpy as jnp
+from jax import vmap
 
 from absl.testing import absltest
 from jsl.seql.agents.bayesian_lin_reg_agent import bayesian_reg
 
-from jsl.seql.utils import train
+from jsl.seql.utils import posterior_predictive_distribution, train
 from jsl.seql.agents.kf_agent import kalman_filter_reg
 from jsl.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
 
@@ -45,23 +46,26 @@ def bayes_callback_fn(**kwargs):
 
 class BayesLinRegTest(absltest.TestCase):
 
+    def _posterior_preditive_distribution(self, x, mu, sigma, obs_noise):
+        return posterior_predictive_distribution(x.reshape((1, -1)), mu, sigma, obs_noise)
+    
     def test_kf_vs_bayes_on_matlab_demo(self):
         env = make_matlab_demo_environment(test_batch_size=1)
 
         *_, input_dim = env.X_train.shape
 
-        nsteps = 1
+        nsteps = 21
         mu0 = jnp.zeros(input_dim)
         Sigma0 = jnp.eye(input_dim) * 10.
 
-        obs_noise = 2.
+        obs_noise = 1.
         agent = kalman_filter_reg(obs_noise, return_history=True)
         belief = agent.init_state(mu0, Sigma0)
 
         kf_belief, _ = train(belief, agent, env,
                                   nsteps=nsteps, callback=callback_fn)
 
-        buffer_size = jnp.inf
+        buffer_size = 1
         agent = bayesian_reg(buffer_size, obs_noise)
         belief = agent.init_state(mu0.reshape((-1, 1)), Sigma0)
 
@@ -70,6 +74,17 @@ class BayesLinRegTest(absltest.TestCase):
 
         assert jnp.allclose(jnp.squeeze(kf_belief.mu), jnp.squeeze(bayes_belief.mu))
         assert jnp.allclose(kf_belief.Sigma, bayes_belief.Sigma)
+
+        # Posterior predictive distribution check
+        v_ppd = vmap(self._posterior_preditive_distribution,
+                     in_axes=(0, 0, 0, None))
+        X = jnp.squeeze(env.X_train)
+
+        bayes_ppds = v_ppd(X, bayes_mean, bayes_cov, obs_noise)
+        kf_ppds = v_ppd(X, kf_mean, kf_cov, obs_noise)
+
+        assert jnp.allclose(bayes_ppds[0], kf_ppds[0])
+        assert jnp.allclose(bayes_ppds[1], kf_ppds[1])
 
 if __name__ == '__main__':
     absltest.main()

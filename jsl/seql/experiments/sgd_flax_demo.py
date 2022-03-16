@@ -9,8 +9,8 @@ from functools import partial
 
 from jsl.seql.environments.base import make_environment_from_torch_dataset
 from jsl.seql.agents.sgd_agent import sgd_agent
-from jsl.seql.utils import LeNet5, train, classification_loss
-
+from jsl.seql.utils import train, classification_loss
+from jsl.seql.experiments.experiment_utils import LeNet5
 
 nclasses = 10
 model = LeNet5(nclasses)

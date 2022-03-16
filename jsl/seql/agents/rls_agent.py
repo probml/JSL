@@ -35,7 +35,7 @@ def rls_agent(obs_noise: float = 1., return_history=True):
             mu, Sigma = state
             xt_, yt = carry
             xt = xt_.reshape((-1, 1))
-            print(xt.shape)
+
             # st = xTt Σt−1 xt + σ2
             st = jnp.matmul(xt.T, jnp.matmul(Sigma, xt)) + obs_noise
 
@@ -51,6 +51,9 @@ def rls_agent(obs_noise: float = 1., return_history=True):
         
         (mu, Sigma), history = lax.scan(step, (belief.mu, belief.Sigma), (x, y))
         
+        if return_history:
+            BeliefState(mu, Sigma), Info(*history)
+
         return BeliefState(mu, Sigma), Info()
 
     def predict(belief: BeliefState,

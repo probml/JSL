@@ -1,60 +1,11 @@
+from typing import Callable
 import jax.numpy as jnp
 from jax import vmap, lax
 from jax.scipy.stats import multivariate_normal
 
 import optax
 
-import flax.linen as nn
-
 import chex
-
-'''
-Models that are used for experiments.
-'''
-class MLP(nn.Module):
-    nclasses: int
-
-    @nn.compact
-    def __call__(self, x: chex.Array
-    ):
-        x = nn.Dense(50, name="last_layer")(x)
-        x = nn.relu(x)
-        x = nn.Dense(self.nclasses)(x)
-        return x
-
-class LeNet5(nn.Module):
-    nclasses: int
-
-    @nn.compact
-    def __call__(self, x: chex.Array):
-        x = x if len(x.shape) > 1 else x[None, :]
-        x = x.reshape((x.shape[0], 28, 28, 1))
-        x = nn.Conv(features=6, kernel_size=(5, 5))(x)
-        x = nn.relu(x)
-
-        x = nn.avg_pool(x,
-                        window_shape=(2, 2),
-                        strides=(2, 2),
-                        padding="VALID")
-
-        x = nn.Conv(features=16,
-                    kernel_size=(5, 5),
-                    padding="VALID")(x)
-
-        x = nn.relu(x)
-        x = nn.avg_pool(x,
-                        window_shape=(2, 2),
-                        strides=(2, 2),
-                        padding="VALID")
-        x = x.reshape((x.shape[0], -1))  # Flatten
-        x = nn.Dense(features=120)(x)
-        x = nn.relu(x)
-        x = nn.Dense(features=84,
-                     name="last_layer")(x)
-        x = nn.relu(x)
-        x = nn.Dense(features=self.nclasses)(x)
-        return x.squeeze()
-
 
 def onehot(labels: chex.Array,
            num_classes: int,
@@ -86,6 +37,11 @@ def regression_loss(targets:chex.Array,
   return -jnp.mean(ll)
 
 
+def mse(params, inputs, outputs, model_fn):
+  predictions = model_fn(params, inputs)
+  return jnp.mean(jnp.power(predictions - outputs, 2)) 
+
+
 def posterior_noise(x: chex.Array,
                     sigma: chex.Array,
                     obs_noise: float):
@@ -96,11 +52,16 @@ def posterior_noise(x: chex.Array,
 def posterior_predictive_distribution(X: chex.Array,
                                       mu: chex.Array,
                                       sigma: chex.Array,
-                                      obs_noise: float):
+                                      obs_noise: float,
+                                      model_fn: Callable= lambda w, x: x @ w):
+
     #Determine coefficient distribution
-    ppd_mean = X @ mu
+    ppd_mean = model_fn(mu, X)
     v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-    noise = v_posterior_noise(X, sigma, obs_noise)
+    if sigma is None:
+        noise = obs_noise
+    else:
+        noise = v_posterior_noise(X, sigma, obs_noise)
     return ppd_mean, noise
 
 
@@ -118,7 +79,7 @@ def train(initial_belief_state, agent, env, nsteps, callback=None):
         
         preds = agent.predict(belief_state, X_test)
         reward = env.reward(*preds, Y_test)
-        print(reward)
+
         if callback:
             if not isinstance(callback, list):
                 callback_list = [callback]

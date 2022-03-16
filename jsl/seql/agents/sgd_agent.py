@@ -7,6 +7,7 @@ import chex
 import typing_extensions
 from typing import Any, Callable, NamedTuple
 
+from jsl.seql.agents.agent_utils import Memory
 from jsl.seql.agents.base import Agent
 
 
@@ -40,8 +41,10 @@ class Info(NamedTuple):
 def sgd_agent(loss_fn: LossFn,
               model_fn: Callable,
               optimizer: Optimizer = optax.adam(1e-2),
-              obs_noise: float = 0.01):
-    
+              obs_noise: float = 0.01,
+              buffer_size: int = jnp.inf):
+              
+    memory = Memory(buffer_size)
     value_and_grad_fn = jit(value_and_grad(loss_fn))
 
     def init_state(params: Params):
@@ -52,9 +55,12 @@ def sgd_agent(loss_fn: LossFn,
                x: chex.Array,
                y: chex.Array):
 
+        assert buffer_size >= len(x)
+        x_, y_ = memory.update(x, y)
+
         params = belief.params 
         opt_state = belief.opt_state
-        loss, grads = value_and_grad_fn(params, x, y)
+        loss, grads = value_and_grad_fn(params, x_, y_)
         updates, opt_state = optimizer.update(grads, opt_state)
         params = optax.apply_updates(params, updates)
         return BeliefState(params, opt_state), Info(loss)
@@ -62,7 +68,6 @@ def sgd_agent(loss_fn: LossFn,
 
     def predict(belief: BeliefState,
             x: chex.Array): 
-    
         params = belief.params
         mu_pred = model_fn(params, x)
         d, *_ = mu_pred.shape

@@ -5,9 +5,10 @@ from jax.scipy.optimize import minimize
 import chex
 import typing_extensions
 from typing import NamedTuple
+from jsl.seql.agents.agent_utils import Memory
 
 from jsl.seql.agents.base import Agent
-from jsl.seql.utils import posterior_noise
+from jsl.seql.utils import posterior_noise, mse
 
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,
@@ -43,17 +44,15 @@ class Info(NamedTuple):
     status: int
     # final function value.
     loss: float
-
-
-def mse(params, inputs, outputs, model_fn):
-  predictions = model_fn(params, inputs)
-  return jnp.mean(jnp.power(predictions - outputs, 2)) 
   
 
 def bfgs_agent(objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
-               obs_noise: float = 0.01):
+               obs_noise: float = 0.01,
+               buffer_size: int = jnp.inf):
 
+    memory = Memory(buffer_size)
+    
     def init_state(x: chex.Array):
         return BeliefState(x)
 
@@ -61,9 +60,12 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
                x: chex.Array,
                y: chex.Array):
         
+        assert buffer_size >= len(x)
+        x_, y_ = memory.update(x, y)
+
         optimize_results = minimize(objective_fn,
                                     belief.x,
-                                    (x, y, model_fn),
+                                    (x_, y_, model_fn),
                                     method="BFGS")
 
         info = Info(optimize_results.success,

@@ -1,13 +1,13 @@
 from jax import config
+
+from jsl.seql.agents.agent_utils import Memory
 config.update('jax_default_matmul_precision', 'float32')
 
 import jax.numpy as jnp
 from jax import vmap
 
 import chex
-
-from dataclasses import dataclass
-from typing import NamedTuple, Tuple
+from typing import NamedTuple
 
 # Local imports
 from jsl.seql.agents.base import Agent
@@ -16,34 +16,6 @@ from jsl.seql.utils import posterior_noise
 
 class Info(NamedTuple):
     ...
-
-@dataclass
-class Memory:
-    buffer_size: int
-    x: chex.Array = None
-    y: chex.Array = None
-
-    def update(self,
-               x: chex.Array,
-               y: chex.Array) -> Tuple[chex.Array, chex.Array]:
-        
-        if self.x is None or self.buffer_size == len(x):
-            new_x, new_y = x, y
-        else:
-            n = len(x) + len(self.x)
-
-            if self.buffer_size < n:
-                nprev = self.buffer_size - len(x)
-                new_x = jnp.vstack([self.x[-nprev:], x])
-                new_y = jnp.vstack([self.y[-nprev:], y])
-            else:
-                new_x = jnp.vstack([self.x, x])
-                new_y = jnp.vstack([self.y, y])
-
-        self.x = new_x
-        self.y = new_y
-
-        return new_x, new_y
 
 
 def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
@@ -58,7 +30,6 @@ def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
                y: chex.Array):
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
-        print(x_.shape, y_.shape)
         Sigma0_inv = jnp.linalg.inv(belief.Sigma)
         Sigma_inv = Sigma0_inv + (x_.T @ x_) / obs_noise
         Sigma = jnp.linalg.inv(Sigma_inv)
