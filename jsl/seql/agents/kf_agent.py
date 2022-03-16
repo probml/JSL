@@ -1,4 +1,6 @@
 # Kalman filter agent
+from jax import config
+config.update('jax_default_matmul_precision', 'float32')
 
 import jax.numpy as jnp
 from jax import vmap

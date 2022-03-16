@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from numpy.linalg import inv
 
 # Local imports
-from jsl.seql.environments.base import eveny_spaced_x_sampler
+from jsl.seql.environments.base import make_evenly_spaced_x_sampler
 from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
 from jsl.seql.utils import posterior_predictive_distribution
 from jsl.seql.utils import train
@@ -17,7 +17,8 @@ def make_matlab_demo_environment(train_batch_size: int = 1,
     # https://github.com/probml/pmtk3/blob/master/demos/linregOnlineDemoKalman.m
 
     max_val, N = 20., 21
-    X = eveny_spaced_x_sampler(max_val, N)
+    x_generator = make_evenly_spaced_x_sampler(max_val)
+    X = x_generator(None, (N, 1))
     Y = jnp.array([2.4865, -0.3033, -4.0531, -4.3359,
                    -6.1742, -5.604, -3.5069, -2.3257,
                    -4.6377, -0.2327, -1.9858, 1.0284,

@@ -22,7 +22,9 @@ class Info(NamedTuple):
     Sigma_hist: chex.Array = None
 
 
-def rls_agent(obs_noise: float = 1., return_history=True):
+def rls_agent(obs_noise: float = 1.,
+              return_history: bool = False):
+            
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
