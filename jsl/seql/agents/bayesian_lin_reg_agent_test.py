@@ -46,8 +46,14 @@ def bayes_callback_fn(**kwargs):
 
 class BayesLinRegTest(absltest.TestCase):
 
-    def _posterior_preditive_distribution(self, x, mu, sigma, obs_noise):
-        return posterior_predictive_distribution(x.reshape((1, -1)), mu, sigma, obs_noise)
+    def _posterior_preditive_distribution(self,
+                                          x, mu,
+                                          sigma, obs_noise):
+        ppd = posterior_predictive_distribution(x.reshape((1, -1)),
+                                                mu,
+                                                sigma,
+                                                obs_noise)
+        return ppd
     
     def test_kf_vs_bayes_on_matlab_demo(self):
         env = make_matlab_demo_environment(test_batch_size=1)
@@ -59,21 +65,31 @@ class BayesLinRegTest(absltest.TestCase):
         Sigma0 = jnp.eye(input_dim) * 10.
 
         obs_noise = 1.
-        agent = kalman_filter_reg(obs_noise, return_history=True)
+        agent = kalman_filter_reg(obs_noise,
+                                  return_history=True)
         belief = agent.init_state(mu0, Sigma0)
 
-        kf_belief, _ = train(belief, agent, env,
-                                  nsteps=nsteps, callback=callback_fn)
+        kf_belief, _ = train(belief,
+                             agent,
+                             env,
+                             nsteps=nsteps,
+                             callback=callback_fn)
 
         buffer_size = 1
         agent = bayesian_reg(buffer_size, obs_noise)
         belief = agent.init_state(mu0.reshape((-1, 1)), Sigma0)
 
-        bayes_belief, _ = train(belief, agent, env,
-                                  nsteps=nsteps, callback=bayes_callback_fn)
+        bayes_belief, _ = train(belief,
+                                agent,
+                                env,
+                                nsteps=nsteps,
+                                callback=bayes_callback_fn)
 
-        assert jnp.allclose(jnp.squeeze(kf_belief.mu), jnp.squeeze(bayes_belief.mu))
-        assert jnp.allclose(kf_belief.Sigma, bayes_belief.Sigma)
+        assert jnp.allclose(jnp.squeeze(kf_belief.mu),
+                            jnp.squeeze(bayes_belief.mu))
+
+        assert jnp.allclose(kf_belief.Sigma,
+                            bayes_belief.Sigma)
 
         # Posterior predictive distribution check
         v_ppd = vmap(self._posterior_preditive_distribution,
@@ -83,8 +99,10 @@ class BayesLinRegTest(absltest.TestCase):
         bayes_ppds = v_ppd(X, bayes_mean, bayes_cov, obs_noise)
         kf_ppds = v_ppd(X, kf_mean, kf_cov, obs_noise)
 
-        assert jnp.allclose(bayes_ppds[0], kf_ppds[0])
-        assert jnp.allclose(bayes_ppds[1], kf_ppds[1])
+        assert jnp.allclose(jnp.squeeze(bayes_ppds[0]),
+                            jnp.squeeze(kf_ppds[0]))
+        assert jnp.allclose(bayes_ppds[1],
+                            kf_ppds[1])
 
 if __name__ == '__main__':
     absltest.main()
