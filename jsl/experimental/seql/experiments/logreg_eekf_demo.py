@@ -7,9 +7,9 @@ import matplotlib.pyplot as plt
 # Local imports
 from jsl.demos import logreg_biclusters as demo
 from jsl.nlds.base import NLDS
-from jsl.seql.agents.eekf_agent import eekf
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.utils import train
+from jsl.experimental.seql.agents.eekf_agent import eekf
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.utils import train
 
 figures, data = demo.main()
 

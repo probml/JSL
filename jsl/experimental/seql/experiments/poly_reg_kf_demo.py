@@ -1,27 +1,19 @@
 import jax.numpy as jnp
 from jax import random
 
-from functools import partial
-
-from jsl.seql.agents.bfgs_agent import bfgs_agent
-from jsl.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.seql.experiments.plotting import plot_posterior_predictive
-from jsl.seql.utils import train
+from jsl.experimental.seql.agents.kf_agent import kalman_filter_reg
+from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
+from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.utils import train
 
 
 belief = None
 
-
-def penalized_objective_fn(params, x, y, model_fn, strength=0.):
-    tmp = y - model_fn(params, x)
-    return jnp.sum(tmp.T @ tmp) + strength * jnp.sum(params**2)
-
 def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
-    mu, sigma = belief.x, None
-    filename = "poly_reg_bfgs_ppd"
-
+    mu, sigma = belief.mu, belief.Sigma
+    filename = "poly_reg_kf_ppd"
     plot_posterior_predictive(env,
                               mu,
                               sigma,
@@ -48,24 +40,17 @@ def main():
                                                   ntrain,
                                                   ntest,
                                                   x_test_generator=x_test_generator)
-                                                    
-    buffer_size = 1
-    obs_noise, tau = 0.01, 1.
-    strength = obs_noise / tau
+    obs_noise = 0.01
+    agent = kalman_filter_reg(obs_noise)
 
-    partial_objective_fn = partial(penalized_objective_fn, strength=strength)
+    input_dim = env.X_train.shape[-1]
+    mu0 = jnp.zeros((input_dim,))
+    Sigma0 = jnp.eye(input_dim)
 
-    agent = bfgs_agent(partial_objective_fn,
-                        obs_noise=obs_noise,
-                        buffer_size=buffer_size)
-
-
-    nfeatures = degree + 1
-    params = jnp.zeros((nfeatures,))
-
-    belief = agent.init_state(params)
+    belief = agent.init_state(mu0, Sigma0)
 
     timesteps = [5, 10, 15]
+
     partial_callback = lambda **kwargs: callback_fn(env, obs_noise, timesteps, **kwargs)
 
     nsteps = 20

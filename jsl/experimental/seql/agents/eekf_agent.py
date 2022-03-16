@@ -4,11 +4,11 @@ from jax import vmap
 import chex
 from typing import List
 
-from jsl.seql.agents.base import Agent
+from jsl.experimental.seql.agents.base import Agent
 from jsl.nlds.base import NLDS
 from jsl.nlds.extended_kalman_filter import filter
-from jsl.seql.agents.kf_agent import BeliefState, Info
-from jsl.seql.utils import posterior_noise
+from jsl.experimental.seql.agents.kf_agent import BeliefState, Info
+from jsl.experimental.seql.utils import posterior_noise
 
 def eekf(nlds: NLDS,
          return_params: List[str] = ["mean", "cov"],

@@ -7,10 +7,10 @@ import seaborn as sns
 
 from sklearn.datasets import make_moons
 
-from jsl.seql.agents.sgd_agent import sgd_agent
-from jsl.seql.utils import MLP, classification_loss
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.utils import train
+from jsl.experimental.seql.agents.sgd_agent import sgd_agent
+from jsl.experimental.seql.utils import MLP, classification_loss
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.utils import train
 
 def loss_fn(params, inputs, labels, predict_fn):
   logprobs = predict_fn(params, inputs)

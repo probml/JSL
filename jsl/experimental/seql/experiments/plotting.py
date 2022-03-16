@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import seaborn as sns
 from matplotlib import pyplot as plt
 
-from jsl.seql.utils import posterior_predictive_distribution
+from jsl.experimental.seql.utils import posterior_predictive_distribution
 
 
 def sort_data(x, y):

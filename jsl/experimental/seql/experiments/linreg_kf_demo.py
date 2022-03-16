@@ -4,11 +4,11 @@ from matplotlib import pyplot as plt
 from numpy.linalg import inv
 
 # Local imports
-from jsl.seql.environments.base import make_evenly_spaced_x_sampler
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.utils import posterior_predictive_distribution
-from jsl.seql.utils import train
-from jsl.seql.agents.kf_agent import kalman_filter_reg
+from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.utils import posterior_predictive_distribution
+from jsl.experimental.seql.utils import train
+from jsl.experimental.seql.agents.kf_agent import kalman_filter_reg
 
 
 def make_matlab_demo_environment(train_batch_size: int = 1,

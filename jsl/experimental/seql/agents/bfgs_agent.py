@@ -5,10 +5,10 @@ from jax.scipy.optimize import minimize
 import chex
 import typing_extensions
 from typing import NamedTuple
-from jsl.seql.agents.agent_utils import Memory
+from jsl.experimental.seql.agents.agent_utils import Memory
 
-from jsl.seql.agents.base import Agent
-from jsl.seql.utils import posterior_noise, mse
+from jsl.experimental.seql.agents.base import Agent
+from jsl.experimental.seql.utils import posterior_noise, mse
 
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,

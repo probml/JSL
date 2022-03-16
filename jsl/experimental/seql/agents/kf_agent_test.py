@@ -3,9 +3,9 @@ import jax.numpy as jnp
 
 from absl.testing import absltest
 
-from jsl.seql.utils import train
-from jsl.seql.agents.kf_agent import kalman_filter_reg
-from jsl.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
+from jsl.experimental.seql.utils import train
+from jsl.experimental.seql.agents.kf_agent import kalman_filter_reg
+from jsl.experimental.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
 from jsl.demos.linreg_kf import kf_linreg
 
 mean, cov = None, None

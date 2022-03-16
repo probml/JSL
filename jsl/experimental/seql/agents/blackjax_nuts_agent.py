@@ -11,8 +11,8 @@ import typing_extensions
 from typing import Any, NamedTuple, Union
 from functools import partial
 
-from jsl.seql.agents.base import Agent
-from jsl.seql.agents.bfgs_agent import ModelFn
+from jsl.experimental.seql.agents.base import Agent
+from jsl.experimental.seql.agents.bfgs_agent import ModelFn
 
 
 Params = Any
@@ -47,9 +47,7 @@ class Info(NamedTuple):
 
 
 class NutsState(NamedTuple):
-    position: Params
-
-
+    posi
 def inference_loop(rng_key, kernel, initial_state, num_samples):
     @jit
     def one_step(state, rng_key):
@@ -67,9 +65,10 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                         potential_fn: PotentialFn,
                         nsamples: int,
                         nwarmup: int,
-                        obs_noise: float = 1.):
+                        obs_noise: float = 1.,
+                        buffer_size: int = 0):
 
-    key = hk.PRNGSequence(key)
+    rng_key = hk.PRNGSequence(key)
     kernel_generator = lambda step_size, inverse_mass_matrix: nuts.kernel(potential_fn,
                                                                           step_size,
                                                                           inverse_mass_matrix)
@@ -106,16 +105,16 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                                       belief_state.step_size,
                                       belief_state.inverse_mass_matrix))
 
-        final_state, states = inference_loop(next(key),
+        _, states = inference_loop(next(rng_key),
                                              nuts_kernel,
                                              belief_state.state,
                                              nsamples)
 
-        belief_state = BeliefState(final_state,
+        belief_state = BeliefState(states[-buffer_size:],
                                    belief_state.step_size,
                                    belief_state.inverse_mass_matrix)
 
-        return belief_state, Info(states.position)
+        return belief_state, Info()
     
     def predict(belief: BeliefState,
                 x: chex.Array):

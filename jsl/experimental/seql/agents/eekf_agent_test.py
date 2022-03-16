@@ -6,9 +6,9 @@ from absl.testing import absltest
 
 from jsl.nlds.base import NLDS
 from jsl.nlds.extended_kalman_filter import filter
-from jsl.seql.utils import train
-from jsl.seql.experiments.logreg_eekf_demo import make_biclusters_data_environment
-from jsl.seql.agents.eekf_agent import eekf
+from jsl.experimental.seql.utils import train
+from jsl.experimental.seql.experiments.logreg_eekf_demo import make_biclusters_data_environment
+from jsl.experimental.seql.agents.eekf_agent import eekf
 
 mean, cov = None, None
 

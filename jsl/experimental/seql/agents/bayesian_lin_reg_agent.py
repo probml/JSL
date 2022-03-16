@@ -1,6 +1,6 @@
 from jax import config
 
-from jsl.seql.agents.agent_utils import Memory
+from jsl.experimental.seql.agents.agent_utils import Memory
 config.update('jax_default_matmul_precision', 'float32')
 
 import jax.numpy as jnp
@@ -10,9 +10,9 @@ import chex
 from typing import NamedTuple
 
 # Local imports
-from jsl.seql.agents.base import Agent
-from jsl.seql.agents.kf_agent import BeliefState
-from jsl.seql.utils import posterior_noise
+from jsl.experimental.seql.agents.base import Agent
+from jsl.experimental.seql.agents.kf_agent import BeliefState
+from jsl.experimental.seql.utils import posterior_noise
 
 class Info(NamedTuple):
     ...

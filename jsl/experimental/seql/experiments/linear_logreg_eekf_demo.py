@@ -2,9 +2,9 @@ import jax.numpy as jnp
 from jax import random
 from jsl.nlds.base import NLDS
 
-from jsl.seql.agents.eekf_agent import eekf
-from jsl.seql.environments.base import make_random_poly_classification_environment
-from jsl.seql.utils import train
+from jsl.experimental.seql.agents.eekf_agent import eekf
+from jsl.experimental.seql.environments.base import make_random_linear_classification_environment
+from jsl.experimental.seql.utils import train
 
 def fz(x): return x
 def fx(w, x): 
@@ -18,27 +18,26 @@ def callback_fn(**kwargs):
 
 def main():
     key = random.PRNGKey(0)
-    degree = 3
     ntrain = 200  # 80% of the data
     ntest = 50  # 20% of the data
-    input_dim, nclasses = degree + 1, 2
+    nfeatures, nclasses = 2, 2
 
-    env = make_random_poly_classification_environment(key,
-                                                  degree,
+    env = make_random_linear_classification_environment(key,
+                                                  nfeatures,
                                                   ntrain,
                                                   ntest,
-                                                  nclasses=nclasses)
+                                                  ntargets=nclasses)
 
     obs_noise = 0.01
-    Pt = jnp.eye(input_dim) * 0.0
-    P0 = jnp.eye(input_dim) * 2.0
-    mu0 = jnp.zeros((input_dim,))
+    Pt = jnp.eye(nfeatures) * 0.0
+    P0 = jnp.eye(nfeatures) * 2.0
+    mu0 = jnp.zeros((nfeatures,))
 
     nlds = NLDS(fz, fx, Pt, Rt, mu0, P0)
     kf_agent = eekf(nlds, obs_noise=obs_noise)
 
-    mu0 = jnp.zeros((input_dim,))
-    Sigma0 = jnp.eye(input_dim)
+    mu0 = jnp.zeros((nfeatures,))
+    Sigma0 = jnp.eye(nfeatures)
 
     belief = kf_agent.init_state(mu0, Sigma0)
 

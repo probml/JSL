@@ -7,8 +7,8 @@ import chex
 import typing_extensions
 from typing import Any, Callable, NamedTuple
 
-from jsl.seql.agents.agent_utils import Memory
-from jsl.seql.agents.base import Agent
+from jsl.experimental.seql.agents.agent_utils import Memory
+from jsl.experimental.seql.agents.base import Agent
 
 
 Params = Any

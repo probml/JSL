@@ -9,8 +9,8 @@ from typing import List, Tuple
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from jsl.seql.environments import base
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.environments import base
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
 
 class EnvironmentTest(parameterized.TestCase):
 

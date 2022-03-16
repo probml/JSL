@@ -3,11 +3,11 @@ import jax.numpy as jnp
 from jax import vmap
 
 from absl.testing import absltest
-from jsl.seql.agents.bayesian_lin_reg_agent import bayesian_reg
+from jsl.experimental.seql.agents.bayesian_lin_reg_agent import bayesian_reg
 
-from jsl.seql.utils import posterior_predictive_distribution, train
-from jsl.seql.agents.kf_agent import kalman_filter_reg
-from jsl.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
+from jsl.experimental.seql.utils import posterior_predictive_distribution, train
+from jsl.experimental.seql.agents.kf_agent import kalman_filter_reg
+from jsl.experimental.seql.experiments.linreg_kf_demo import make_matlab_demo_environment
 
 
 kf_mean, kf_cov = None, None

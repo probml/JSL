@@ -1,22 +1,19 @@
 import jax.numpy as jnp
 from jax import random
 
-from functools import partial
-
-from jsl.seql.agents.sgd_agent import sgd_agent
-from jsl.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.seql.experiments.plotting import plot_posterior_predictive
-from jsl.seql.experiments.experiment_utils import MLP
-from jsl.seql.utils import train, mse
+from jsl.experimental.seql.agents.bayesian_lin_reg_agent import bayesian_reg
+from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
+from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.utils import train
 
 
 belief = None
 
-def callback_fn(model, env, obs_noise, timesteps, **kwargs):
+def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
-    mu, sigma = belief.params, None
-    filename = "poly_reg_sgd_ppd"
+    mu, sigma = belief.mu, belief.Sigma
+    filename = "poly_reg_bayesian_ppd"
 
     plot_posterior_predictive(env,
                             mu,
@@ -24,7 +21,6 @@ def callback_fn(model, env, obs_noise, timesteps, **kwargs):
                             obs_noise,
                             timesteps,
                             filename,
-                            model_fn=model.apply,
                             **kwargs)
 
 
@@ -46,24 +42,22 @@ def main():
                                                   ntest,
                                                   x_test_generator=x_test_generator)
                                                     
+    
+
+    input_dim = env.X_train.shape[-1]
+    mu0 = jnp.zeros((input_dim,))
+    Sigma0 = jnp.eye(input_dim)
+
     obs_noise = 0.01
     timesteps = [5, 10, 15]
     nsteps = 20
+
     buffer_size = 1
-    nclasses = 1
-    model = MLP(nclasses)
+    agent = bayesian_reg(buffer_size, obs_noise)
 
-    partial_mse = partial(mse, model_fn=model.apply)
-    agent = sgd_agent(partial_mse,
-                      model.apply,
-                      obs_noise=obs_noise,
-                      buffer_size=buffer_size)
+    belief = agent.init_state(mu0.reshape((-1, 1)), Sigma0)
 
-    batch = jnp.ones((1, degree + 1))
-    variables = model.init(key, batch)
-    belief = agent.init_state(variables)
-
-    partial_callback = lambda **kwargs: callback_fn(model, env, obs_noise, timesteps, **kwargs)
+    partial_callback = lambda **kwargs: callback_fn(env, obs_noise, timesteps, **kwargs)
     
     _, unused_rewards = train(belief,
                               agent,

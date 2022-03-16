@@ -3,7 +3,7 @@ from jax import random
 
 import chex
 
-from jsl.seql.utils import classification_loss, regression_loss
+from jsl.experimental.seql.utils import classification_loss, regression_loss
 
 
 class SequentialDataEnvironment:

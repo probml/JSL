@@ -9,8 +9,8 @@ from jax import vmap, lax
 import chex
 from typing import NamedTuple
 
-from jsl.seql.agents.base import Agent
-from jsl.seql.utils import posterior_noise
+from jsl.experimental.seql.agents.base import Agent
+from jsl.experimental.seql.utils import posterior_noise
 
 class BeliefState(NamedTuple):
     mu: chex.Array
