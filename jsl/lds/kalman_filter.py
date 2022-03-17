@@ -108,15 +108,15 @@ class LDS:
 
         obs_t = jnp.einsum("ij,sj->si", self.observations(0), state_t) + obs_noise[0]
 
-        def sample_step(state, carry):
-            system_noise_t, obs_noise_t, t = carry
-            state_new = jnp.einsum("ij,sj->si", self.A, state) + system_noise_t
-            obs_new = jnp.einsum("ij,sj->si", self.observations(t), state_new) + obs_noise_t
+        def sample_step(state, inps):
+            system_noise_t, obs_noise_t, t = inps
+            state_new = state @ self.A.T + system_noise_t
+            obs_new = state_new @ self.observations(t).T + obs_noise_t
             return state_new, (state_new, obs_new)
 
         timesteps = jnp.arange(1, timesteps)
-        carry = (system_noise[1:], obs_noise[1:], timesteps)
-        _, (state_hist, obs_hist) = lax.scan(sample_step, state_t, carry)
+        inputs = (system_noise[1:], obs_noise[1:], timesteps)
+        _, (state_hist, obs_hist) = lax.scan(sample_step, state_t, inputs)
 
         state_hist = jnp.swapaxes(jnp.vstack([state_t[None, ...], state_hist]), 0, 1)
         obs_hist = jnp.swapaxes(jnp.vstack([obs_t[None, ...], obs_hist]), 0, 1)
@@ -165,7 +165,7 @@ def kalman_smoother(params: LDS,
     def smoother_step(state, elements):
         mut_giv_T, Sigmat_giv_T = state
         mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-        Jt = solve(Sigmat_cond_next, A @ Sigmatt).T
+        Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
         mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
         Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
         return (mut_giv_T, Sigmat_giv_T), (mut_giv_T, Sigmat_giv_T)
@@ -230,7 +230,7 @@ def kalman_filter(params: LDS, x_hist: chex.Array,
         Ct = params.observations(t)
 
         St = Ct @ Sigma_cond @ Ct.T + R
-        Kt = solve(St, Ct @ Sigma_cond).T
+        Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
 
         et = obs - Ct @ mu_cond
         mu = mu_cond + Kt @ et

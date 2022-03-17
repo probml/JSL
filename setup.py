@@ -8,6 +8,7 @@ setup(
         "dataclasses",
         "jaxlib",
         "jax",
+        "matplotlib",
         "tensorflow_probability"
     ]
 )
