@@ -10,7 +10,7 @@ import chex
 
 import jax.numpy as jnp
 from jax.random import multivariate_normal, split
-from jax.numpy.linalg import inv
+from jax.scipy.linalg import solve
 from jax import tree_map
 
 from jax import lax, vmap
@@ -165,7 +165,7 @@ def kalman_smoother(params: LDS,
     def smoother_step(state, elements):
         mut_giv_T, Sigmat_giv_T = state
         mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-        Jt = Sigmatt @ A.T @ inv(Sigmat_cond_next)
+        Jt = solve(Sigmat_cond_next, A @ Sigmatt).T
         mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
         Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
         return (mut_giv_T, Sigmat_giv_T), (mut_giv_T, Sigmat_giv_T)
@@ -230,7 +230,7 @@ def kalman_filter(params: LDS, x_hist: chex.Array,
         Ct = params.observations(t)
 
         St = Ct @ Sigma_cond @ Ct.T + R
-        Kt = Sigma_cond @ Ct.T @ inv(St)
+        Kt = solve(St, Ct @ Sigma_cond).T
 
         et = obs - Ct @ mu_cond
         mu = mu_cond + Kt @ et
