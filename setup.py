@@ -4,7 +4,10 @@ setup(
     name="jsl",
     packages=find_packages(),
     install_requires=[
+        "chex",
+        "dataclasses",
         "jaxlib",
-        "jax"
+        "jax",
+        "tensorflow_probability"
     ]
 )
