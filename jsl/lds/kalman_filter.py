@@ -1,16 +1,25 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
+
+
+from jax import config
+config.update('jax_default_matmul_precision', 'float32')
+
 import chex
 
 import jax.numpy as jnp
 from jax.random import multivariate_normal, split
-from jax.scipy.linalg import solve
+from jax.numpy.linalg import inv
+from jax import tree_map
 
 from jax import lax, vmap
 
 from dataclasses import dataclass
+from functools import partial
 from typing import Union, Callable
 
+from tensorflow_probability.substrates import jax as tfp
+tfd = tfp.distributions
 
 @dataclass
 class LDS:
@@ -145,10 +154,7 @@ def kalman_smoother(params: LDS,
     * array(timesteps, state_size, state_size)
         Smoothed covariances Sigmat
     """
-    timesteps, _ = mu_hist.shape
-
     A = params.A
-    state_size, _ = A.shape
 
     mut_giv_T = mu_hist[-1, :]
     Sigmat_giv_T = Sigma_hist[-1, :]
@@ -156,7 +162,7 @@ def kalman_smoother(params: LDS,
     def smoother_step(state, elements):
         mut_giv_T, Sigmat_giv_T = state
         mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-        Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
+        Jt = Sigmatt @ A.T @ inv(Sigmat_cond_next)
         mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
         Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
         return (mut_giv_T, Sigmat_giv_T), (mut_giv_T, Sigmat_giv_T)
@@ -174,8 +180,10 @@ def kalman_smoother(params: LDS,
 
     return mu_hist_smooth, Sigma_hist_smooth
 
+        
 
-def kalman_filter(params: LDS, x_hist: chex.Array):
+def kalman_filter(params: LDS, x_hist: chex.Array,
+                  return_history: bool = True):
     """
     Compute the online version of the Kalman-Filter, i.e,
     the one-step-ahead prediction for the hidden state or the
@@ -186,6 +194,7 @@ def kalman_filter(params: LDS, x_hist: chex.Array):
     params: LDS
          Linear Dynamical System object
     x_hist: array(timesteps, observation_size)
+    return_history: bool
 
     Returns
     -------
@@ -199,35 +208,50 @@ def kalman_filter(params: LDS, x_hist: chex.Array):
         Filtered conditional covariances Sigmat|t-1
     """
     A, Q, R = params.A, params.Q, params.R
+
     state_size, _ = A.shape
     I = jnp.eye(state_size)
 
+
+    def predict_step(mu, Sigma):
+        # \Sigma_{t|t-1}
+        Sigman_cond = A @ Sigma @ A.T + Q
+
+        # \mu_{t |t-1} and xn|{n-1}
+        mu_cond = A @ mu
+        
+        return mu_cond, Sigman_cond
+
     def kalman_step(state, obs):
-        mun, Sigman, t = state
+        mu, Sigma, t = state
+        
+        mu_cond, Sigma_cond = predict_step(mu, Sigma)
+        Ct = params.observations(t)
 
-        # Sigman|{n-1}
-        Sigman_cond = A @ Sigman @ A.T + Q
-        St = params.observations(t) @ Sigman_cond @ params.observations(t).T + R
-        Kn = solve(St, params.observations(t) @ Sigman_cond, sym_pos=True).T
+        St = Ct @ Sigma_cond @ Ct.T + R
+        Kt = Sigma_cond @ Ct.T @ inv(St)
+        
+        et = obs - Ct @ mu_cond
+        mu = mu_cond + Kt @ et
 
-        # mun|{n-1} and xn|{n-1}
-        mu_update = A @ mun
-        x_update = params.observations(t) @ mu_update
+        #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
+        tmp = (I - Kt @ Ct)
+        Sigma = tmp @ Sigma_cond @ tmp.T +  Kt @ (R * Kt.T)
 
-        mun = mu_update + Kn @ (obs - x_update)
-        Sigman = (I - Kn @ params.observations(t)) @ Sigman_cond
         t = t + 1
 
-        return (mun, Sigman, t), (mun, Sigman, mu_update, Sigman_cond)
+        return (mu, Sigma, t), (mu, Sigma, mu_cond, Sigma_cond)
 
     mu0, Sigma0 = params.mu, params.Sigma
     initial_state = (mu0, Sigma0, 0)
-    _, history = lax.scan(kalman_step, initial_state, x_hist)
+    (mun, Sigman, _), history = lax.scan(kalman_step, initial_state, x_hist)
+    if return_history:
+        return history
+    return mun, Sigman, None, None
 
-    return history
 
-
-def filter(params: LDS, x_hist: chex.Array):
+def filter(params: LDS, x_hist: chex.Array,
+           return_history: bool = True):
     """
     Compute the online version of the Kalman-Filter, i.e,
     the one-step-ahead prediction for the hidden state or the
@@ -241,7 +265,7 @@ def filter(params: LDS, x_hist: chex.Array):
     params: LDS
          Linear Dynamical System object
     x_hist: array(n_samples?, timesteps, observation_size)
-
+    return_history: bool
     Returns
     -------
     * array(n_samples?, timesteps, state_size):
@@ -258,12 +282,14 @@ def filter(params: LDS, x_hist: chex.Array):
         x_hist = x_hist[None, ...]
         has_one_sim = True
 
-    kalman_map = vmap(kalman_filter, (None, 0))
-    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = kalman_map(params, x_hist)
-    if has_one_sim:
-        mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = mu_hist[0, ...], Sigma_hist[0, ...], mu_cond_hist[
-            0, ...], Sigma_cond_hist[0, ...]
-    return mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist
+    kalman_map = vmap(partial(kalman_filter, return_history=return_history), (None, 0))
+    outputs = kalman_map(params, x_hist)
+
+    if has_one_sim and return_history:
+        outputs = tree_map(lambda x: x[0, ...], outputs)
+        return outputs
+
+    return outputs
 
 
 def smooth(params: LDS,

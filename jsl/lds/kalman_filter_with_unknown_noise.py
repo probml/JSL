@@ -4,15 +4,16 @@
 import chex
 
 import jax.numpy as jnp
+from jax import lax, vmap, tree_map
 
-from jax import lax, vmap
+from dataclasses import dataclass
+from functools import partial
+from typing import Union, Callable
 
 from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
 
-from dataclasses import dataclass
-from typing import Union, Callable
 
 @dataclass
 class LDS:
@@ -55,16 +56,20 @@ class LDS:
     tau: chex.Array
 
 
-def kalman_filter(params: LDS, x_hist: chex.Array):
+def kalman_filter(params: LDS, x_hist: chex.Array,
+                  return_history: bool = True):
     """
     Compute the online version of the Kalman-Filter, i.e,
     the one-step-ahead prediction for the hidden state or the
     time update step
+
     Parameters
     ----------
     params: LDS
          Linear Dynamical System object
     x_hist: array(timesteps, observation_size)
+    return_history: bool
+
     Returns
     -------
     * array(timesteps, state_size):
@@ -97,15 +102,18 @@ def kalman_filter(params: LDS, x_hist: chex.Array):
         v_update = v + 1
         tau = (v * tau + (e_k * e_k) / s_k) / v_update
 
-        return mu, Sigma, v_update, tau
+        return (mu, Sigma, v_update, tau), (mu, Sigma)
 
     mu0, Sigma0 = params.mu, params.Sigma
     initial_state = (mu0, Sigma0, 0)
-    _, history = lax.scan(kalman_step, initial_state, x_hist)
+    (mu, Sigma, _, _), history = lax.scan(kalman_step, initial_state, x_hist)
+    if return_history:
+        return history
+    return mu, Sigma
 
-    return history
 
-def filter(params: LDS, x_hist):
+def filter(params: LDS, x_hist: chex.Array,
+           return_history: bool = True):
     """
     Compute the online version of the Kalman-Filter, i.e,
     the one-step-ahead prediction for the hidden state or the
@@ -133,9 +141,8 @@ def filter(params: LDS, x_hist):
     if x_hist.ndim == 2:
         x_hist = x_hist[None, ...]
         has_one_sim = True
-    kalman_map = vmap(kalman_filter, (None, 0))
-    mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = kalman_map(params, x_hist)
-    if has_one_sim:
-        mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist = mu_hist[0, ...], Sigma_hist[0, ...], mu_cond_hist[
-            0, ...], Sigma_cond_hist[0, ...]
-    return mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist
+    kalman_map = vmap(partial(kalman_filter, return_history=return_history), (None, 0))
+    outputs = kalman_map(params, x_hist)
+    if has_one_sim and return_history:
+        return tree_map(lambda x: x[0, ...], outputs)
+    return outputs

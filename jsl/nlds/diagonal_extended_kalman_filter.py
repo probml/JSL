@@ -17,7 +17,8 @@ def filter(params: NLDS,
            init_state: chex.Array,
            sample_obs: chex.Array,
            observations: Tuple = None,
-           Vinit: chex.Array = None):
+           Vinit: chex.Array = None,
+           return_history: bool = True):
     """
     Run the Extended Kalman Filter algorithm over a set of observed samples.
     Parameters
@@ -44,7 +45,8 @@ def filter(params: NLDS,
     observations = (observations,) if type(observations) is not tuple else observations
     xs = (sample_obs, observations)
 
-    def filter_step(state, xs):
+    def filter_step(state: Tuple[chex.Array, chex.Array],
+                    xs: Tuple[chex.Array, int]):
         """
         Run the Extended Kalman filter algorithm for a single step
         Paramters
@@ -71,4 +73,7 @@ def filter(params: NLDS,
 
     (mu_t, Vt, _), mu_t_hist = lax.scan(filter_step, state, xs)
 
-    return (mu_t, Vt), mu_t_hist
+    if return_history:
+        return (mu_t, Vt), mu_t_hist
+
+    return (mu_t, Vt), None
