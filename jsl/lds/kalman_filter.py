@@ -237,7 +237,7 @@ def kalman_filter(params: LDS, x_hist: chex.Array,
 
         #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
         tmp = (I - Kt @ Ct)
-        Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R * Kt.T)
+        Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R @ Kt.T)
 
         t = t + 1
 
