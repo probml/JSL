@@ -32,25 +32,26 @@ def main():
 
     key = random.PRNGKey(0)
     degree = 3
-    ntrain = 200  # 80% of the data
-    ntest = 50  # 20% of the data
+    ntrain = 2048  
+    ntest = 64
     
     min_val, max_val = -3, 3
     x_test_generator = make_evenly_spaced_x_sampler(max_val,
                                                     use_bias=False,
                                                     min_val=min_val)
-
+    train_batch_size = 128
     env = make_random_poly_regression_environment(key,
                                                   degree,
                                                   ntrain,
                                                   ntest,
+                                                  train_batch_size=train_batch_size,
                                                   x_test_generator=x_test_generator)
                                                     
     obs_noise = 0.01
     timesteps = [5, 10, 15]
     nsteps = 20
-    buffer_size = 1
-
+    
+    buffer_size = train_batch_size
     agent = sgd_agent(mse,
                       model_fn,
                       optimizer=optax.adam(1e-1),

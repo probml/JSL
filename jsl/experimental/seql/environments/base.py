@@ -37,6 +37,7 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
                                                 ntrain: int,
                                                 ntest: int,
                                                 nclasses:int = 2,
+                                                nfeatures: int = 1,
                                                 obs_noise: float=0.01,
                                                 train_batch_size: int=1,
                                                 test_batch_size: int=1,
@@ -45,8 +46,8 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
 
 
   train_key, test_key = random.split(key)
-  X_train = x_train_generator(train_key, (ntrain, 1))
-  X_test = x_test_generator(test_key, (ntest, 1))
+  X_train = x_train_generator(train_key, (ntrain, nfeatures))
+  X_test = x_test_generator(test_key, (ntest, nfeatures))
   X = jnp.vstack([X_train, X_test])
 
   poly = PolynomialFeatures(degree)
