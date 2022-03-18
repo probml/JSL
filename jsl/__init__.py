@@ -1,1 +1,2 @@
-from . import hmm, lds, nlds, demos, foo_vb, seql
+from . import hmm, lds, nlds, demos
+from .experimental import foo_vb, seql

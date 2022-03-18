@@ -17,11 +17,19 @@ def onehot(labels: chex.Array,
   return x.astype(jnp.float32)
   
 
+
+def binary_cross_entropy(labels, logprobs):
+    probs = jnp.exp(logprobs)
+    loss = labels * logprobs + (1-labels) * jnp.log(1 - probs)
+    return -jnp.mean(loss)
+
 def classification_loss(labels: chex.Array,
                         logprobs: chex.Array,
                         scale: chex.Array = None):
 
   nclasses = logprobs.shape[-1]
+  if nclasses==1:
+      return binary_cross_entropy(labels, logprobs)
   one_hot_labels = onehot(labels, num_classes=nclasses)
   xentropy = optax.softmax_cross_entropy(logits=logprobs, labels=one_hot_labels)
   return jnp.mean(xentropy)

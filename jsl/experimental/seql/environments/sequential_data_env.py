@@ -40,7 +40,6 @@ class SequentialDataEnvironment:
   def reward(self, mu_pred: chex.Array,
                    sigma_pred: chex.Array,
                    y_test: chex.Array):
-                   
     loss = self.loss_fn(y_test, mu_pred, sigma_pred)
     return -loss
   

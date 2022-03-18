@@ -1,7 +1,9 @@
+from functools import partial
 import jax.numpy as jnp
 from jax import random
 
 from jsl.experimental.seql.agents.blackjax_nuts_agent import blackjax_nuts_agent
+from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
 from jsl.experimental.seql.experiments.experiment_utils import MLP
@@ -16,11 +18,14 @@ def model_fn(w, x):
 def logprob_fn(params, x, y, model_fn):
     return -mse(params, x, y, model_fn)
 
+def logprior_fn(params):
+    return 0.
+
 def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
-    mu, sigma = belief.state.position, None
-    filename = "poly_reg_nuts_ppd"
+    mu, sigma = belief.params, None
+    filename = "poly_reg_sgld_ppd"
 
     plot_posterior_predictive(env,
                             mu,
@@ -37,7 +42,7 @@ def main():
     key = random.PRNGKey(0)
     degree = 3
     ntrain = 2200  # 80% of the data
-    ntest = 50  # 20% of the data
+    ntest = 200  # 20% of the data
     
     min_val, max_val = -3, 3
     x_test_generator = make_evenly_spaced_x_sampler(max_val,
@@ -56,17 +61,21 @@ def main():
     timesteps = [5, 10, 15]
     nsteps = 22
     buffer_size = 0
-    nsamples, nwarmup = 100, 50
+    nsamples = 100
+    partial_logprob_fn = partial(logprob_fn,
+                                 model_fn=model_fn)
+    agent = sgld_agent(key,
+                       partial_logprob_fn,
+                       logprior_fn,
+                       model_fn,
+                       dt = 1e-5,
+                       batch_size=train_batch_size,
+                       nsamples=nsamples,
+                       obs_noise=obs_noise,
+                       buffer_size=buffer_size)
 
-    agent = blackjax_nuts_agent(key,
-                                logprob_fn,
-                                model_fn,
-                                nsamples=nsamples,
-                                nwarmup=nwarmup,
-                                obs_noise=obs_noise,
-                                buffer_size=buffer_size)
-
-    params =  jnp.zeros((degree+1, 1))
+    input_dim = degree+1
+    params =  jnp.zeros((input_dim, 1))
     belief = agent.init_state(params)
 
     partial_callback = lambda **kwargs: callback_fn(env, obs_noise, timesteps, **kwargs)

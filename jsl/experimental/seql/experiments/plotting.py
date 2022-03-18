@@ -85,4 +85,4 @@ def plot_posterior_predictive(env, mu, sigma, obs_noise, timesteps, filename, **
         ax2.set_title("Test Data")
         fig.suptitle(f"Posterior Predictive Distribution(t={t})")
         plt.tight_layout()
-        plt.savefig(f"jsl/seql/experiments/figures/{filename}_{t}.png")
+        plt.savefig(f"jsl/experimental/seql/experiments/figures/{filename}_{t}.png")

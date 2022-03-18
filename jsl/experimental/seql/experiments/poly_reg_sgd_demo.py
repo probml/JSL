@@ -1,18 +1,16 @@
 import jax.numpy as jnp
 from jax import random
-
-from functools import partial
+import optax
 
 from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
-from jsl.experimental.seql.experiments.experiment_utils import MLP
 from jsl.experimental.seql.utils import train, mse
 
 
 belief = None
 
-def callback_fn(model, env, obs_noise, timesteps, **kwargs):
+def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
     mu, sigma = belief.params, None
@@ -24,9 +22,11 @@ def callback_fn(model, env, obs_noise, timesteps, **kwargs):
                             obs_noise,
                             timesteps,
                             filename,
-                            model_fn=model.apply,
+                            model_fn=model_fn,
                             **kwargs)
 
+def model_fn(w, x):
+    return x @ w
 
 def main():
 
@@ -50,20 +50,18 @@ def main():
     timesteps = [5, 10, 15]
     nsteps = 20
     buffer_size = 1
-    nclasses = 1
-    model = MLP(nclasses)
 
-    partial_mse = partial(mse, model_fn=model.apply)
-    agent = sgd_agent(partial_mse,
-                      model.apply,
+    agent = sgd_agent(mse,
+                      model_fn,
+                      optimizer=optax.adam(1e-1),
                       obs_noise=obs_noise,
                       buffer_size=buffer_size)
 
-    batch = jnp.ones((1, degree + 1))
-    variables = model.init(key, batch)
-    belief = agent.init_state(variables)
+    nfeatures = degree + 1
+    params = jnp.zeros((nfeatures, 1))
+    belief = agent.init_state(params)
 
-    partial_callback = lambda **kwargs: callback_fn(model, env, obs_noise, timesteps, **kwargs)
+    partial_callback = lambda **kwargs: callback_fn(env, obs_noise, timesteps, **kwargs)
     
     _, unused_rewards = train(belief,
                               agent,

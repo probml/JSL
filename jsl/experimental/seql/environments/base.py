@@ -9,8 +9,8 @@ from typing import Callable, List, Tuple
 import numpy as np
 from sklearn.preprocessing import PolynomialFeatures
 
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.environments.sequential_torch_env import SequentialTorchEnvironment
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.environments.sequential_torch_env import SequentialTorchEnvironment
 
 
 def gaussian_sampler(key: chex.PRNGKey, shape: Tuple) -> chex.Array:
