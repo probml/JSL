@@ -3,13 +3,14 @@
 
 
 from jax import config
+
 config.update('jax_default_matmul_precision', 'float32')
 
 import chex
 
 import jax.numpy as jnp
 from jax.random import multivariate_normal, split
-from jax.numpy.linalg import inv
+from jax.scipy.linalg import solve
 from jax import tree_map
 
 from jax import lax, vmap
@@ -19,7 +20,9 @@ from functools import partial
 from typing import Union, Callable
 
 from tensorflow_probability.substrates import jax as tfp
+
 tfd = tfp.distributions
+
 
 @dataclass
 class LDS:
@@ -63,8 +66,8 @@ class LDS:
     def sample(self,
                key: chex.PRNGKey,
                timesteps: int,
-               n_samples: int=1,
-               sample_intial_state: bool=False):
+               n_samples: int = 1,
+               sample_initial_state: bool = False):
         """
         Simulate a run of n_sample independent stochastic
         linear dynamical systems
@@ -78,7 +81,7 @@ class LDS:
         n_samples: int
             Number of independent linear systems with shared dynamics (optional)
         sample_initial_state: bool
-            Whether to sample from an initial state or sepecified
+            Whether to sample from an initial state or specified
 
         Returns
         -------
@@ -90,7 +93,7 @@ class LDS:
         key_z1, key_system_noise, key_obs_noise = split(key, 3)
         state_size, _ = self.A.shape
 
-        if not sample_intial_state:
+        if not sample_initial_state:
             state_t = self.mu * jnp.ones((n_samples, state_size))
         else:
             state_t = multivariate_normal(key_z1, self.mu, self.Sigma, (n_samples,))
@@ -105,15 +108,15 @@ class LDS:
 
         obs_t = jnp.einsum("ij,sj->si", self.observations(0), state_t) + obs_noise[0]
 
-        def sample_step(state, carry):
-            system_noise_t, obs_noise_t, t = carry
-            state_new = jnp.einsum("ij,sj->si", self.A, state) + system_noise_t
-            obs_new = jnp.einsum("ij,sj->si", self.observations(t), state_new) + obs_noise_t
+        def sample_step(state, inps):
+            system_noise_t, obs_noise_t, t = inps
+            state_new = state @ self.A.T + system_noise_t
+            obs_new = state_new @ self.observations(t).T + obs_noise_t
             return state_new, (state_new, obs_new)
 
         timesteps = jnp.arange(1, timesteps)
-        carry = (system_noise[1:], obs_noise[1:], timesteps)
-        _, (state_hist, obs_hist) = lax.scan(sample_step, state_t, carry)
+        inputs = (system_noise[1:], obs_noise[1:], timesteps)
+        _, (state_hist, obs_hist) = lax.scan(sample_step, state_t, inputs)
 
         state_hist = jnp.swapaxes(jnp.vstack([state_t[None, ...], state_hist]), 0, 1)
         obs_hist = jnp.swapaxes(jnp.vstack([obs_t[None, ...], obs_hist]), 0, 1)
@@ -162,7 +165,7 @@ def kalman_smoother(params: LDS,
     def smoother_step(state, elements):
         mut_giv_T, Sigmat_giv_T = state
         mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-        Jt = Sigmatt @ A.T @ inv(Sigmat_cond_next)
+        Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
         mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
         Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
         return (mut_giv_T, Sigmat_giv_T), (mut_giv_T, Sigmat_giv_T)
@@ -180,7 +183,6 @@ def kalman_smoother(params: LDS,
 
     return mu_hist_smooth, Sigma_hist_smooth
 
-        
 
 def kalman_filter(params: LDS, x_hist: chex.Array,
                   return_history: bool = True):
@@ -212,31 +214,30 @@ def kalman_filter(params: LDS, x_hist: chex.Array,
     state_size, _ = A.shape
     I = jnp.eye(state_size)
 
-
     def predict_step(mu, Sigma):
         # \Sigma_{t|t-1}
         Sigman_cond = A @ Sigma @ A.T + Q
 
         # \mu_{t |t-1} and xn|{n-1}
         mu_cond = A @ mu
-        
+
         return mu_cond, Sigman_cond
 
     def kalman_step(state, obs):
         mu, Sigma, t = state
-        
+
         mu_cond, Sigma_cond = predict_step(mu, Sigma)
         Ct = params.observations(t)
 
         St = Ct @ Sigma_cond @ Ct.T + R
-        Kt = Sigma_cond @ Ct.T @ inv(St)
-        
+        Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
+
         et = obs - Ct @ mu_cond
         mu = mu_cond + Kt @ et
 
         #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
         tmp = (I - Kt @ Ct)
-        Sigma = tmp @ Sigma_cond @ tmp.T +  Kt @ (R * Kt.T)
+        Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R @ Kt.T)
 
         t = t + 1
 

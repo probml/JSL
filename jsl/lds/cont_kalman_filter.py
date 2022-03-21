@@ -4,7 +4,7 @@
 
 import jax.numpy as jnp
 from jax import random, lax
-from jax.numpy.linalg import inv
+from jax.scipy.linalg import solve
 
 import chex
 from math import ceil
@@ -141,7 +141,8 @@ def filter(params: LDS,
     A, Q, C, R = params.A, params.Q, params.C, params.R
     mu, Sigma = params.mu, params.Sigma
 
-    K1 = Sigma @ C.T @ inv(C @ Sigma @ C.T + R)
+    temp = C @ Sigma @ C.T + R
+    K1 = solve(temp, C @ Sigma, sym_pos=True).T
     mu1 = mu + K1 @ (x_hist[0] - C @ mu)
     Sigma1 = (I - K1 @ C) @ Sigma
 
@@ -166,7 +167,7 @@ def filter(params: LDS,
 
         Sigman_cond = jnp.ones_like(Sigman) * Sigman
         St = C @ Sigman_cond @ C.T + R
-        Kn = Sigman_cond @ C.T @ inv(St)
+        Kn = solve(St, C @ Sigman_cond, sym_pos=True).T
 
         mu_update = jnp.ones_like(mun) * mun
         x_update = C @ mun
