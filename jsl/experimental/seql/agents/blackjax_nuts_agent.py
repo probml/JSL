@@ -40,7 +40,7 @@ class BeliefState(NamedTuple):
     state: State = None
     step_size: float = 0.
     inverse_mass_matrix: chex.Array = None
-    samples: Any = None
+    samples: Samples = None
 
 
 class Info(NamedTuple):

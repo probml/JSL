@@ -26,100 +26,48 @@ def sort_data(x, y):
 
     return x_, y_
 
-def plot_posterior_predictive(env, mu, sigma, obs_noise, timesteps, filename, **kwargs):
+def plot_posterior_predictive(ax, env, mu, sigma,
+                              model_fn, obs_noise, t):
     sns.set_style("whitegrid")
     sns.color_palette("pastel")
 
-    t = kwargs["t"]
-
-    X_test = kwargs["X_test"]
-    Y_test = kwargs["Y_test"]
-
-    nprev = reduce(lambda x, y: x*y, env.X_train[:t].shape[:-1])
-
-    X_train, Y_train = sort_data(env.X_train[:t+1], env.y_train[:t+1])
-    X_test, Y_test = sort_data(X_test, Y_test)
 
 
-    if t in timesteps:
-        if "model_fn" in kwargs:
-            m, s = posterior_predictive_distribution(X_train,
-                                                     mu,
-                                                     sigma,
-                                                     obs_noise=obs_noise,
-                                                     model_fn=kwargs["model_fn"])
-        else:
-            m, s = posterior_predictive_distribution(X_train,
-                                                    mu,
-                                                    sigma,
-                                                    obs_noise=obs_noise)
+    nprev = reduce(lambda x, y: x*y,
+                   env.X_train[:t].shape[:-1])
 
-        fig, (ax1, ax2) = plt.subplots(ncols=2, figsize=(12, 6))
+    X_train, Y_train = sort_data(env.X_train[:t+1],
+                                 env.y_train[:t+1])
+    
+    posterior_mu, posterior_sigma = posterior_predictive_distribution(X_train,
+                                                mu,
+                                                sigma,
+                                                obs_noise=obs_noise,
+                                                model_fn=model_fn)
 
-        # Plot training data
-        prev_x, prev_y = X_train[:nprev, 1], Y_train[:nprev]
-        cur_x, cur_y = X_train[nprev:, 1], Y_train[nprev:]
-        
-        ax1.scatter(prev_x,
-                    prev_y,
-                    label='previous training data',
-                    alpha=0.1)
-        
-        ax1.scatter(cur_x,
-                    cur_y,
-                    label='current training data',
-                    alpha=0.1)
-        
-        error = jnp.squeeze(s)
+    # Plot training data
+    prev_x, prev_y = X_train[:nprev, 1], Y_train[:nprev]
+    cur_x, cur_y = X_train[nprev:, 1], Y_train[nprev:]
+    ax.scatter(prev_x, prev_y, alpha=0.2)
+    ax.scatter(cur_x, cur_y, alpha=0.2)
 
-        ypred = jnp.squeeze(m) 
+    ypred = jnp.squeeze(posterior_mu)
+    error = jnp.squeeze(posterior_sigma)
 
-        ax1.plot(jnp.squeeze(X_train[:, 1]),
-                 ypred,
-                 color=sns.color_palette()[2])
-
-        ax1.fill_between(jnp.squeeze(X_train[:, 1]),
-                         ypred + error,
-                        ypred - error,
-                        alpha=0.2,
-                        color=sns.color_palette()[2])
-
-        ax1.set_title("Training Data")
-
-        if "model_fn" in kwargs:
-            m, s = posterior_predictive_distribution(X_test,
-                                                    mu,
-                                                    sigma,
-                                                    obs_noise=obs_noise,
-                                                    model_fn=kwargs["model_fn"])
-        else:
-            m, s = posterior_predictive_distribution(X_test,
-                                                    mu,
-                                                    sigma,
-                                                    obs_noise=obs_noise)
-        # Plot test data
-        ax2.scatter(X_test[:, 1],
-                    Y_test,
-                    label='test data',
-                    alpha=0.3)
-        
-        ypred = jnp.squeeze(m)
-        error = jnp.squeeze(s)
-
-        ax2.plot(jnp.squeeze(X_test[:, 1]),
+    ax.errorbar(jnp.squeeze(X_train[:, 1]),
                 ypred,
+                yerr=error,
                 color=sns.color_palette()[2])
 
-        ax2.fill_between(jnp.squeeze(X_test[:, 1]),
-                         ypred + error,
-                         ypred - error,
-                         alpha=0.2,
-                         color=sns.color_palette()[2])
+    ax.fill_between(jnp.squeeze(X_train[:, 1]),
+                    ypred + error,
+                    ypred - error,
+                    alpha=0.2,
+                    color=sns.color_palette()[2])
 
-        ax2.set_title("Test Data")
-        fig.suptitle(f"Posterior Predictive Distribution(t={t})")
-        plt.tight_layout()
-        plt.savefig(f"jsl/experimental/seql/experiments/figures/{filename}_{t}.png")
+    ax.set_title(f"t={t}")
+    plt.tight_layout()
+
 
 def plot_classification_predictions(env,
                                    mu,

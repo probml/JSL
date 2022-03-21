@@ -1,16 +1,4 @@
-
-
-
-'''
-(
-    dt: float,
-    loglikelihood: Callable,
-    logprior: Callable,
-    data: Tuple,
-    batch_size: int,
-    centering_value: PyTree,
-)
-'''
+from functools import partial
 import jax.numpy as jnp
 from jax import tree_map
 import haiku as hk
@@ -65,6 +53,9 @@ def sgld_agent(key: chex.PRNGKey,
                nsamples: int,
                obs_noise: float,
                buffer_size: int = 0):
+
+    partial_loglikelihood = partial(loglikelihood,
+                                    model_fn=model_fn)
 
     rng_key = hk.PRNGSequence(key)
 

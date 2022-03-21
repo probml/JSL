@@ -46,7 +46,7 @@ def main():
     agent = kalman_filter_reg(obs_noise)
 
     input_dim = env.X_train.shape[-1]
-    mu0 = jnp.zeros((input_dim,))
+    mu0 = jnp.zeros((input_dim,1))
     Sigma0 = jnp.eye(input_dim)
 
     belief = agent.init_state(mu0, Sigma0)

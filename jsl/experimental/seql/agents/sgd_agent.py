@@ -1,4 +1,5 @@
 from functools import partial
+import warnings
 import optax
 
 import jax.numpy as jnp
@@ -49,8 +50,12 @@ def sgd_agent(loss_fn: LossFn,
               model_fn: ModelFn,
               optimizer: Optimizer = optax.adam(1e-2),
               obs_noise: float = 0.01,
-              buffer_size: int = jnp.inf):
-              
+              buffer_size: int = jnp.inf,
+              nepochs: int = 20,
+              threshold: int = 1):
+
+    assert threshold <= buffer_size
+
     memory = Memory(buffer_size)
     partial_loss_fn = partial(loss_fn, model_fn=model_fn)
     value_and_grad_fn = jit(value_and_grad(partial_loss_fn))
@@ -62,15 +67,23 @@ def sgd_agent(loss_fn: LossFn,
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-
+            
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
-        params = belief.params 
+        if len(x_) < threshold:
+            warnings.warn("There should be more data.", UserWarning)
+            info = Info(False, -1, jnp.inf)
+            return belief, info
+
+        params = belief.params
         opt_state = belief.opt_state
-        loss, grads = value_and_grad_fn(params, x_, y_)
-        updates, opt_state = optimizer.update(grads, opt_state)
-        params = optax.apply_updates(params, updates)
+        
+        for _ in range(nepochs):
+            loss, grads = value_and_grad_fn(params, x_, y_)
+            updates, opt_state = optimizer.update(grads, opt_state)
+            params = optax.apply_updates(params, updates)
+        
         return BeliefState(params, opt_state), Info(loss)
 
 

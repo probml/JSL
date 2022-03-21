@@ -2,6 +2,7 @@ import jax.numpy as jnp
 from jax import random
 
 from functools import partial
+from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
 
 from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
@@ -12,15 +13,15 @@ from jsl.experimental.seql.utils import train
 belief = None
 
 
-def penalized_objective_fn(params, x, y, model_fn, strength=0.):
-    tmp = y - model_fn(params, x)
+def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.):
+    tmp = outputs - model_fn(params, inputs)
     return jnp.sum(tmp.T @ tmp) + strength * jnp.sum(params**2)
 
 def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
     mu, sigma = belief.params, None
-    filename = "poly_reg_bfgs_ppd"
+    filename = "poly_reg_lbfgs_ppd"
 
     plot_posterior_predictive(env,
                               mu,
@@ -56,7 +57,7 @@ def main():
 
     partial_objective_fn = partial(penalized_objective_fn, strength=strength)
 
-    agent = bfgs_agent(partial_objective_fn,
+    agent = lbfgs_agent(partial_objective_fn,
                         obs_noise=obs_noise,
                         buffer_size=buffer_size)
 
