@@ -4,11 +4,16 @@ from jax.scipy.optimize import minimize
 
 import chex
 import typing_extensions
-from typing import NamedTuple
+from typing import Any, NamedTuple
+
+import warnings
+
 from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.utils import posterior_noise, mse
+
+Params = Any
 
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,
@@ -27,7 +32,7 @@ class ObjectiveFn(typing_extensions.Protocol):
 
 
 class BeliefState(NamedTuple):
-    x: chex.Array
+    params: Params
 
 
 class Info(NamedTuple):
@@ -49,12 +54,15 @@ class Info(NamedTuple):
 def bfgs_agent(objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
                obs_noise: float = 0.01,
-               buffer_size: int = jnp.inf):
-
+               buffer_size: int = jnp.inf,
+               threshold: int = 1):
+    
+    assert threshold <= buffer_size
+    
     memory = Memory(buffer_size)
     
     def init_state(x: chex.Array):
-        return BeliefState(x)
+        return BeliefState(jnp.squeeze(x))
 
     def update(belief: BeliefState,
                x: chex.Array,
@@ -63,8 +71,13 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
+        if len(x_) < threshold:
+            warnings.warn("There should be more data.", UserWarning)
+            info = Info(False, -1, jnp.inf)
+            return belief, info
+
         optimize_results = minimize(objective_fn,
-                                    belief.x,
+                                    belief.params,
                                     (x_, y_, model_fn),
                                     method="BFGS")
 
@@ -76,12 +89,8 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
     
     def predict(belief: BeliefState,
                 x: chex.Array):
-        try:
-            v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-            noise = v_posterior_noise(x, belief.Sigma, obs_noise)
-        except:
-            d, *_ = x.shape
-            noise = obs_noise * jnp.eye(d)
-        return model_fn(belief.x, x), noise
+        d, *_ = x.shape
+        noise = obs_noise * jnp.eye(d)
+        return model_fn(belief.params, x), noise
 
     return Agent(init_state, update, predict)

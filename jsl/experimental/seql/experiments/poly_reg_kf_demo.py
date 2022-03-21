@@ -27,24 +27,26 @@ def main():
 
     key = random.PRNGKey(0)
     degree = 3
-    ntrain = 200  # 80% of the data
-    ntest = 50  # 20% of the data
+    ntrain = 2048  
+    ntest = 64
     
     min_val, max_val = -3, 3
     x_test_generator = make_evenly_spaced_x_sampler(max_val,
                                                     use_bias=False,
                                                     min_val=min_val)
 
+    train_batch_size = 128
     env = make_random_poly_regression_environment(key,
                                                   degree,
                                                   ntrain,
                                                   ntest,
+                                                  train_batch_size=train_batch_size,
                                                   x_test_generator=x_test_generator)
     obs_noise = 0.01
     agent = kalman_filter_reg(obs_noise)
 
     input_dim = env.X_train.shape[-1]
-    mu0 = jnp.zeros((input_dim,))
+    mu0 = jnp.zeros((input_dim,1))
     Sigma0 = jnp.eye(input_dim)
 
     belief = agent.init_state(mu0, Sigma0)

@@ -1,7 +1,10 @@
 import jax.numpy as jnp
 from jax import random
 
-from jsl.experimental.seql.agents.bayesian_lin_reg_agent import bayesian_reg
+from functools import partial
+from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
+
+from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
 from jsl.experimental.seql.utils import train
@@ -9,19 +12,24 @@ from jsl.experimental.seql.utils import train
 
 belief = None
 
+
+def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.):
+    tmp = outputs - model_fn(params, inputs)
+    return jnp.sum(tmp.T @ tmp) + strength * jnp.sum(params**2)
+
 def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
-    mu, sigma = belief.mu, belief.Sigma
-    filename = "poly_reg_bayesian_ppd"
+    mu, sigma = belief.params, None
+    filename = "poly_reg_lbfgs_ppd"
 
     plot_posterior_predictive(env,
-                            mu,
-                            sigma,
-                            obs_noise,
-                            timesteps,
-                            filename,
-                            **kwargs)
+                              mu,
+                              sigma,
+                              obs_noise,
+                              timesteps,
+                              filename,
+                              **kwargs)
 
 
 def main():
@@ -35,7 +43,7 @@ def main():
     x_test_generator = make_evenly_spaced_x_sampler(max_val,
                                                     use_bias=False,
                                                     min_val=min_val)
-    train_batch_size = 128
+    train_batch_size = 1
     env = make_random_poly_regression_environment(key,
                                                   degree,
                                                   ntrain,
@@ -43,23 +51,26 @@ def main():
                                                   train_batch_size=train_batch_size,
                                                   x_test_generator=x_test_generator)
                                                     
-    
+    buffer_size = 20
+    obs_noise, tau = 0.01, 1.
+    strength = obs_noise / tau
 
-    input_dim = env.X_train.shape[-1]
-    mu0 = jnp.zeros((input_dim,))
-    Sigma0 = jnp.eye(input_dim)
+    partial_objective_fn = partial(penalized_objective_fn, strength=strength)
 
-    obs_noise = 0.01
+    agent = lbfgs_agent(partial_objective_fn,
+                        obs_noise=obs_noise,
+                        buffer_size=buffer_size)
+
+
+    nfeatures = degree + 1
+    params = jnp.zeros((nfeatures,))
+
+    belief = agent.init_state(params)
+
     timesteps = [5, 10, 15]
-    nsteps = 20
-
-    buffer_size = train_batch_size
-    agent = bayesian_reg(buffer_size, obs_noise)
-
-    belief = agent.init_state(mu0.reshape((-1, 1)), Sigma0)
-
     partial_callback = lambda **kwargs: callback_fn(env, obs_noise, timesteps, **kwargs)
-    
+
+    nsteps = 20
     _, unused_rewards = train(belief,
                               agent,
                               env,

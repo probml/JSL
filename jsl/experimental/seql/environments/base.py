@@ -9,8 +9,8 @@ from typing import Callable, List, Tuple
 import numpy as np
 from sklearn.preprocessing import PolynomialFeatures
 
-from jsl.seql.environments.sequential_data_env import SequentialDataEnvironment
-from jsl.seql.environments.sequential_torch_env import SequentialTorchEnvironment
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+from jsl.experimental.seql.environments.sequential_torch_env import SequentialTorchEnvironment
 
 
 def gaussian_sampler(key: chex.PRNGKey, shape: Tuple) -> chex.Array:
@@ -20,23 +20,61 @@ def gaussian_sampler(key: chex.PRNGKey, shape: Tuple) -> chex.Array:
 def make_evenly_spaced_x_sampler(max_val: float, use_bias: bool= True, min_val: float = 0)->Callable:
 
     def eveny_spaced_x_sampler(key: chex.PRNGKey, shape: Tuple)->chex.Array:
-        nsamples = jnp.product(np.array(shape))
-        X = jnp.linspace(min_val, max_val, nsamples)
-        if use_bias:
-            X = jnp.c_[jnp.ones(nsamples), X]
-        else:
-            X = X.reshape((-1, 1))
+        if len(shape)==1:
+            shape = (shape[0], 1)
+        nsamples, nfeatures = shape
+        assert nfeatures == 1 or nfeatures == 2
 
+        if nfeatures==1:
+            X = jnp.linspace(min_val, max_val, nsamples)
+            if use_bias:
+                X = jnp.c_[jnp.ones(nsamples), X]
+            else:
+                X = X.reshape((-1, 1))
+        else:
+            x = jnp.linspace(min_val, max_val, nsamples)
+            y = jnp.linspace(min_val, max_val, nsamples)
+            xx, yy= jnp.meshgrid(x,y)
+            X = jnp.array((xx.ravel(), yy.ravel())).T
         return X
+        
     return eveny_spaced_x_sampler
 
 
+def make_bimodel_sampler(mixing_parameter: float,
+                         means: List[float],
+                         variances: List[float]):
+    mu1, mu2 = means
+    sigma1, sigma2 = variances
+
+    def check_unimodal():
+        d = jnp.abs(mu1 - mu2) / 2 * jnp.sqrt(mu1 * mu2)
+        lhs = jnp.abs(jnp.log(1-mixing_parameter) - jnp.log(mixing_parameter))     
+        rhs = 2 * jnp.log(d - jnp.sqrt(d**2 - 1)) + 2 * d * jnp.sqrt(d**2 - 1)
+        return lhs >= rhs
+    
+    is_unimodal = check_unimodal()
+    if is_unimodal:
+        raise TypeError("The mixture is unimodal.")
+
+    def bimodel_sampler(key: chex.PRNGKey, shape: Tuple)-> chex.Array:
+        nsamples, nfeatures = shape
+        n1 = int(nsamples * mixing_parameter)
+        n2 = int(nsamples * (1 - mixing_parameter))
+        
+        x1_key, x2_key = random.split(key)
+        x1 = gaussian_sampler(x1_key, (n1, nfeatures))*sigma1 + mu1
+        x2 = gaussian_sampler(x2_key, (n2, nfeatures))*sigma2 + mu2
+        return jnp.vstack([x1, x2])
+        
+    return bimodel_sampler
 
 def make_random_poly_classification_environment(key: chex.PRNGKey,
                                                 degree: int,
                                                 ntrain: int,
                                                 ntest: int,
                                                 nclasses:int = 2,
+                                                nfeatures: int = 1,
                                                 obs_noise: float=0.01,
                                                 train_batch_size: int=1,
                                                 test_batch_size: int=1,
@@ -45,8 +83,8 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
 
 
   train_key, test_key = random.split(key)
-  X_train = x_train_generator(train_key, (ntrain, 1))
-  X_test = x_test_generator(test_key, (ntest, 1))
+  X_train = x_train_generator(train_key, (ntrain, nfeatures))
+  X_test = x_test_generator(test_key, (ntest, nfeatures))
   X = jnp.vstack([X_train, X_test])
 
   poly = PolynomialFeatures(degree)
@@ -138,6 +176,9 @@ def make_random_linear_classification_environment(key: chex.PRNGKey,
     ground_truth = 100 * random.normal(w_key, (nfeatures, ntargets))
 
     Y = jnp.argmax(jnp.dot(X, ground_truth) + bias, axis=-1).reshape((-1, 1))
+    
+    if bias:
+        X = jnp.hstack([jnp.ones((len(X), 1)), X])
 
     # Add noise
     if obs_noise > 0.0:
@@ -181,6 +222,8 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
     ground_truth = 100 * random.normal(w_key,(nfeatures, ntargets))
 
     Y = jnp.dot(X, ground_truth) + bias
+    if bias:
+        X = jnp.hstack([jnp.ones((len(X), 1)), X])
 
     # Add noise
     if obs_noise > 0.0:

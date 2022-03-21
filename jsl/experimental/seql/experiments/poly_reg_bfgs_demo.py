@@ -19,7 +19,7 @@ def penalized_objective_fn(params, x, y, model_fn, strength=0.):
 def callback_fn(env, obs_noise, timesteps, **kwargs):
     global belief
     belief = kwargs["belief_state"]
-    mu, sigma = belief.x, None
+    mu, sigma = belief.params, None
     filename = "poly_reg_bfgs_ppd"
 
     plot_posterior_predictive(env,
@@ -35,21 +35,22 @@ def main():
 
     key = random.PRNGKey(0)
     degree = 3
-    ntrain = 200  # 80% of the data
-    ntest = 50  # 20% of the data
+    ntrain = 2048  
+    ntest = 64
     
     min_val, max_val = -3, 3
     x_test_generator = make_evenly_spaced_x_sampler(max_val,
                                                     use_bias=False,
                                                     min_val=min_val)
-
+    train_batch_size = 1
     env = make_random_poly_regression_environment(key,
                                                   degree,
                                                   ntrain,
                                                   ntest,
+                                                  train_batch_size=train_batch_size,
                                                   x_test_generator=x_test_generator)
                                                     
-    buffer_size = 1
+    buffer_size = 20
     obs_noise, tau = 0.01, 1.
     strength = obs_noise / tau
 
