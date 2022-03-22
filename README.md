@@ -25,10 +25,8 @@ Now install these packages:
 ```
 !pip install --upgrade git+https://github.com/google/flax.git
 !pip install --upgrade tensorflow-probability
-!pip install git+git://github.com/blackjax-devs/blackjax.git
-!pip install git+git://github.com/deepmind/distrax.git
-!pip install superimport 
-!pip install fire
+!pip install git+https://github.com/blackjax-devs/blackjax.git
+!pip install git+https://github.com/deepmind/distrax.git
 ```
 
 Then install JSL:
