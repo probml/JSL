@@ -33,7 +33,7 @@ Now install these packages:
 
 Then install JSL:
 ```
-!pip install git+git://github.com/probml/jsl
+!pip install git+https://github.com/probml/jsl
 ```
 Alternatively, you can clone the repo locally, into say `~/github/JSL`, and then install it as a package, as follows:
 ```
