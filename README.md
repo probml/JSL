@@ -47,15 +47,24 @@ cd JSL
 You can see how to use the library by looking at some of the demos.
 You can run the demos from inside a notebook like this
 ```
-%run JSL/jsl/demos/kf_tracking_demo.py
+%run JSL/jsl/demos/kf_tracking.py
 %run JSL/jsl/demos/hmm_casino_em_train.py
 ```
 
-Most of the demos create figures. If you want to save them,
+Or from inside an ipython shell like this
+```
+from jsl.demos import kf_tracking
+figdict = kf_tracking.main()
+```
+
+Most of the demos create figures. If you want to save them (in both png and pdf format),
 you need to specify the FIGDIR environment variable, like this:
 ```
 import os
-os.environ["FIGDIR"]='../figures'
+os.environ["FIGDIR"]='/Users/kpmurphy/figures'
+
+from jsl.demos.plot_utils import savefig
+savefig(figdict)
 ```
 
 # Authors
