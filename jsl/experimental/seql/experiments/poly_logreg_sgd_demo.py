@@ -4,7 +4,7 @@ from sklearn.preprocessing import PolynomialFeatures
 
 from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.environments.base import make_random_poly_classification_environment
-from jsl.experimental.seql.experiments.plotting import plot_classification_predictions
+from jsl.experimental.seql.experiments.plotting import plot_classification_2d
 from jsl.experimental.seql.utils import binary_cross_entropy, train
 
 def callback_fn(agent, env, model_fn, obs_noise, degree, **kwargs):
@@ -22,7 +22,7 @@ def callback_fn(agent, env, model_fn, obs_noise, degree, **kwargs):
 
     filename = "poly_logreg_sgd_ppd"
     timesteps = [5, 10, 15, 75]
-    plot_classification_predictions(env,
+    plot_classification_2d(env,
                                     mu,
                                     sigma,
                                     obs_noise,

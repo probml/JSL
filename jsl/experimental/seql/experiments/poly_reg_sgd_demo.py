@@ -4,7 +4,7 @@ import optax
 
 from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
 from jsl.experimental.seql.utils import train, mse
 
 
@@ -16,7 +16,7 @@ def callback_fn(env, obs_noise, timesteps, **kwargs):
     mu, sigma = belief.params, None
     filename = "poly_reg_sgd_ppd"
 
-    plot_posterior_predictive(env,
+    plot_regression_posterior_predictive(env,
                             mu,
                             sigma,
                             obs_noise,

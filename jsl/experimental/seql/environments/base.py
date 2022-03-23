@@ -32,10 +32,12 @@ def make_evenly_spaced_x_sampler(max_val: float, use_bias: bool= True, min_val: 
             else:
                 X = X.reshape((-1, 1))
         else:
-            x = jnp.linspace(min_val, max_val, nsamples)
-            y = jnp.linspace(min_val, max_val, nsamples)
+            nx = 2 # jnp.sqrt(nsamples)
+            ny = 5 
+            x = jnp.linspace(min_val, max_val, nx)
+            y = jnp.linspace(min_val, max_val, ny)
             xx, yy= jnp.meshgrid(x,y)
-            X = jnp.array((xx.ravel(), yy.ravel())).T
+            X = jnp.array((xx.ravel(), yy.ravel())).T #10x10=100 e ntrain nasıl çalışıyo o zaman
         return X
         
     return eveny_spaced_x_sampler
@@ -69,6 +71,49 @@ def make_bimodel_sampler(mixing_parameter: float,
         
     return bimodel_sampler
 
+
+def make_sin_wave_regression_environment(key: chex.PRNGKey,
+                                        ntrain: int,
+                                        ntest: int,
+                                        obs_noise: float=0.01,
+                                        train_batch_size: int=1,
+                                        test_batch_size: int=1,
+                                        x_train_generator: Callable=gaussian_sampler,
+                                        x_test_generator: Callable=gaussian_sampler,
+                                        bias: bool = True):
+
+    train_key, test_key, noise_key, env_key = random.split(key, 4)
+    X_train = x_train_generator(train_key, (ntrain, 1))
+    X_test = x_test_generator(test_key, (ntest, 1))
+    X = jnp.vstack([X_train, X_test])
+    
+    if obs_noise > 0.0:
+        nsamples = ntrain + ntest
+        noise = random.normal(noise_key, (nsamples, 1)) * obs_noise
+    
+    Y = jnp.sin(X) + noise
+    
+    if bias:
+        X = jnp.hstack([jnp.ones((len(X), 1)), X])
+
+    X_train = X[:ntrain]
+    X_test = X[ntrain:]
+    y_train = Y[:ntrain]
+    y_test = Y[ntrain:]
+    
+    
+    env = SequentialDataEnvironment(X_train, y_train,
+                                    X_test, y_test,
+                                    train_batch_size, test_batch_size,
+                                    classification=False,
+                                    key=env_key)
+    
+    return env
+
+
+
+
+
 def make_random_poly_classification_environment(key: chex.PRNGKey,
                                                 degree: int,
                                                 ntrain: int,
@@ -82,7 +127,7 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
                                                 x_test_generator: Callable=gaussian_sampler):
 
 
-  train_key, test_key = random.split(key)
+  train_key, test_key, env_key = random.split(key, 3)
   X_train = x_train_generator(train_key, (ntrain, nfeatures))
   X_test = x_test_generator(test_key, (ntest, nfeatures))
   X = jnp.vstack([X_train, X_test])
@@ -92,10 +137,9 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
 
   D = Phi.shape[-1]
   w = random.normal(key, (D, nclasses))
-
   if obs_noise > 0.0:
     nsamples = ntrain + ntest
-    noise = random.normal(key, (nsamples, 1)) * obs_noise
+    noise = random.normal(key, (nsamples, nclasses)) * obs_noise
 
   Y = jnp.argmax(Phi @ w + noise, axis=-1).reshape((-1, 1))
   
@@ -107,7 +151,8 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
   env = SequentialDataEnvironment(X_train, y_train,
                                 X_test, y_test,
                                 train_batch_size, test_batch_size,
-                                classification=True)
+                                classification=True,
+                                key=env_key)
   
   return env
 
@@ -122,7 +167,7 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
                                             x_test_generator: Callable=gaussian_sampler):
 
 
-  train_key, test_key = random.split(key)
+  train_key, test_key, env_key = random.split(key, 3)
   X_train = x_train_generator(train_key, (ntrain, 1))
   X_test = x_test_generator(test_key, (ntest, 1))
   X = jnp.vstack([X_train, X_test])
@@ -143,10 +188,12 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
   y_train = Y[:ntrain]
   y_test = Y[ntrain:]
   
+  
   env = SequentialDataEnvironment(X_train, y_train,
                                 X_test, y_test,
                                 train_batch_size, test_batch_size,
-                                classification=False)
+                                classification=False,
+                                key=env_key)
   
   return env
 
@@ -164,7 +211,7 @@ def make_random_linear_classification_environment(key: chex.PRNGKey,
     # https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/datasets/_samples_generator.py#L506
 
     # Randomly generate a well conditioned input set
-    train_key, test_key, w_key, noise_key = random.split(key, 4) 
+    train_key, test_key, w_key, noise_key, env_key = random.split(key, 5) 
 
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
@@ -192,7 +239,8 @@ def make_random_linear_classification_environment(key: chex.PRNGKey,
     env = SequentialDataEnvironment(X_train, y_train,
                                     X_test, y_test,
                                     train_batch_size, test_batch_size,
-                                    classification=False)
+                                    classification=False,
+                                    key=env_key)
     return env
 
 def make_random_linear_regression_environment(key: chex.PRNGKey,
@@ -210,7 +258,7 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
 
     nsamples = ntrain + ntest
     # Randomly generate a well conditioned input set
-    train_key, test_key, w_key, noise_key = random.split(key, 4) 
+    train_key, test_key, w_key, noise_key, env_key = random.split(key, 5) 
 
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
@@ -237,7 +285,8 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
     env = SequentialDataEnvironment(X_train, y_train,
                                     X_test, y_test,
                                     train_batch_size, test_batch_size,
-                                    classification=False)
+                                    classification=False,
+                                    key=env_key)
     return env
 
 def make_mlp(key: chex.PRNGKey,
@@ -289,7 +338,7 @@ def make_classification_mlp_environment(key: chex.PRNGKey,
                                         x_train_generator: Callable=gaussian_sampler,
                                         x_test_generator: Callable=gaussian_sampler):
 
-    train_key, test_key, y_key = random.split(key, 3)
+    train_key, test_key, y_key, env_key = random.split(key, 4)
     y_predictor = make_mlp(y_key,
                     nfeatures,
                     ntargets,
@@ -322,7 +371,8 @@ def make_classification_mlp_environment(key: chex.PRNGKey,
     env = SequentialDataEnvironment(X_train, y_train,
                                     X_test, y_test,
                                     train_batch_size, test_batch_size,
-                                    classification=True)
+                                    classification=True,
+                                    key=env_key)
     return env
 
 
@@ -338,7 +388,7 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
                                     x_train_generator: Callable=gaussian_sampler,
                                     x_test_generator: Callable=gaussian_sampler):
 
-    train_key, test_key, y_key = random.split(key, 3)
+    train_key, test_key, y_key, env_key = random.split(key, 3)
     y_predictor = make_mlp(y_key,
                     nfeatures,
                     ntargets,
@@ -361,7 +411,8 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
     env = SequentialDataEnvironment(X_train, y_train,
                                     X_test, y_test,
                                     train_batch_size, test_batch_size,
-                                    classification=False)
+                                    classification=False,
+                                    key=env_key)
     return env
     
 

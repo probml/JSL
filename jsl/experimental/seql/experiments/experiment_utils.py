@@ -7,7 +7,6 @@ import flax.linen as nn
 
 import chex
 
-
 class MLP(nn.Module):
     nclasses: int
 

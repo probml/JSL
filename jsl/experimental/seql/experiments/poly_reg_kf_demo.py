@@ -3,7 +3,7 @@ from jax import random
 
 from jsl.experimental.seql.agents.kf_agent import kalman_filter_reg
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
 from jsl.experimental.seql.utils import train
 
 
@@ -14,7 +14,7 @@ def callback_fn(env, obs_noise, timesteps, **kwargs):
     belief = kwargs["belief_state"]
     mu, sigma = belief.mu, belief.Sigma
     filename = "poly_reg_kf_ppd"
-    plot_posterior_predictive(env,
+    plot_regression_posterior_predictive(env,
                               mu,
                               sigma,
                               obs_noise,

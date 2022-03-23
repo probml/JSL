@@ -1,4 +1,5 @@
 from functools import partial
+import warnings
 import jax.numpy as jnp
 from jax import vmap
 
@@ -7,6 +8,7 @@ from jaxopt import LBFGS
 import chex
 import typing_extensions
 from typing import Any, Callable, NamedTuple, Optional, Union
+from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.utils import posterior_noise
@@ -46,13 +48,15 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
                 maxls: int = 15,
                 decrease_factor: float = 0.8,
                 increase_factor: float = 1.5,
-                buffer_size: int = 10,
+                history_size: int = 10,
                 use_gamma: bool = True,
                 implicit_diff: bool = True,
                 implicit_diff_solve: Optional[Callable] = None,
                 jit: AutoOrBoolean = "auto",
                 unroll: AutoOrBoolean = "auto",
-                verbose: bool = False):
+                verbose: bool = False,
+                buffer_size: int = jnp.inf,
+                threshold: int = 1):
     '''
     https://github.com/google/jaxopt/blob/53b539e6c5cee4c52262ce17d4601839422ffe87/jaxopt/_src/lbfgs.py#L148
     Attributes:
@@ -86,6 +90,11 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
     partial_objective_fn = partial(objective_fn,
                                    model_fn=model_fn)
 
+
+    assert threshold <= buffer_size
+    
+    memory = Memory(buffer_size)
+
     lbfgs = LBFGS(partial_objective_fn,
                   has_aux,
                   maxiter,
@@ -94,13 +103,14 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
                   maxls,
                   decrease_factor,
                   increase_factor,
-                  buffer_size,
+                  history_size,
                   use_gamma,
                   implicit_diff,
                   implicit_diff_solve,
                   jit,
                   unroll,
                   verbose)
+
 
     def init_state(params: Params):
         return BeliefState(params)
@@ -109,9 +119,18 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
+        
+        assert buffer_size >= len(x)
+        x_, y_ = memory.update(x, y)
+
+        if len(x_) < threshold:
+            warnings.warn("There should be more data.", UserWarning)
+            return belief, None
+
+
         params, info = lbfgs.run(belief.params,
-                                 inputs=x,
-                                 outputs=y)
+                                 inputs=x_,
+                                 outputs=y_)
         return BeliefState(params), info
     
     def predict(belief: BeliefState,

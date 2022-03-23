@@ -81,6 +81,7 @@ def sgd_agent(loss_fn: LossFn,
         
         for _ in range(nepochs):
             loss, grads = value_and_grad_fn(params, x_, y_)
+            print(loss)
             updates, opt_state = optimizer.update(grads, opt_state)
             params = optax.apply_updates(params, updates)
         

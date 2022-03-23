@@ -1,3 +1,4 @@
+from typing import Optional
 import jax.numpy as jnp
 from jax import random
 
@@ -7,13 +8,16 @@ from jsl.experimental.seql.utils import classification_loss, regression_loss
 
 
 class SequentialDataEnvironment:
-  def __init__(self, X_train: chex.Array,
-                     y_train: chex.Array,
-                     X_test: chex.Array,
-                     y_test: chex.Array,
-                     train_batch_size: int,
-                     test_batch_size: int,
-                     classification: bool):
+  def __init__(self, 
+               X_train: chex.Array,
+               y_train: chex.Array,
+               X_test: chex.Array,
+               y_test: chex.Array,
+               train_batch_size: int,
+               test_batch_size: int,
+               classification: bool,
+               key: Optional[chex.PRNGKey] = None):
+
     ntrain, nfeatures = X_train.shape
     ntest, _ = X_test.shape
     _, out = y_train.shape
@@ -33,6 +37,9 @@ class SequentialDataEnvironment:
       self.loss_fn = classification_loss
     else:
       self.loss_fn = regression_loss
+    
+    #if key is not None:
+    #  self.reset(key)
 
   def get_data(self, t: int):
     return self.X_train[t], self.y_train[t], self.X_test, self.y_test
@@ -47,14 +54,14 @@ class SequentialDataEnvironment:
     train_key, test_key = random.split(key)
     ntrain = len(self.X_train)
     train_indices = jnp.arange(ntrain)
-    train_indices = random.shuffle(train_key, train_indices)
+    train_indices = random.permutation(train_key, train_indices)
 
     self.X_train = self.X_train[train_indices]
     self.y_train = self.y_train[train_indices]
 
     ntest = len(self.X_test)
     test_indices = jnp.arange(ntest)
-    test_indices = random.shuffle(test_key, test_indices)
+    test_indices = random.permutation(test_key, test_indices)
 
     self.X_test = self.X_test[test_indices]
     self.y_test = self.y_test[test_indices]

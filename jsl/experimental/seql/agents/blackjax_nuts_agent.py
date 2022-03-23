@@ -1,3 +1,4 @@
+import warnings
 import chex
 import haiku as hk
 from jax import jit, random, lax, tree_map, vmap
@@ -10,6 +11,7 @@ import jax.numpy as jnp
 
 import typing_extensions
 from typing import Any, NamedTuple, Union
+from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.agents.bfgs_agent import ModelFn
@@ -71,9 +73,18 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                         nsamples: int,
                         nwarmup: int,
                         obs_noise: float = 1.,
-                        buffer_size: int = 0):
+                        nlast: int = 10, 
+                        buffer_size: int = 0,
+                        threshold: int = 1):
 
     rng_key = hk.PRNGSequence(key)
+
+    if buffer_size==jnp.inf:
+        buffer_size = 0
+
+    assert threshold <= buffer_size or buffer_size==0
+    memory = Memory(buffer_size)
+
 
     def init_state(initial_position: Params):
         nuts_state = NutsState(initial_position)
@@ -82,11 +93,20 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
+
+
+        assert buffer_size >= len(x)
+        x_, y_ = memory.update(x, y)
+
+        if len(x_) < threshold:
+            warnings.warn("There should be more data.", UserWarning)
+            return belief, Info()
+            
         @jit
         def partial_potential_fn(params):
-            return potential_fn(params, x, y, model_fn)    
+            return potential_fn(params, x_, y_, model_fn)    
 
+        
         state = nuts.new_state(belief.state.position,
                                 partial_potential_fn)
 
@@ -107,11 +127,11 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                                              nuts_kernel,
                                              state,
                                              nsamples)
-
-        belief_state = BeliefState(final,
+                                             
+        belief_state = BeliefState(tree_map(lambda x: x.mean(axis=0), states),
                                    step_size,
                                    inverse_mass_matrix,
-                                   tree_map(lambda x: x[-buffer_size:], states)
+                                   tree_map(lambda x: x[-nlast:], states)
                                    )
         return belief_state, Info()
     
@@ -124,12 +144,14 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
             
             def _predict(*args):
                 pytree = tree_unflatten(pytree_def, args[0])
+
                 return model_fn(pytree, x)
             
             return vmap(_predict)(flat_tree)
 
         predictions = get_mean_predictions(belief.samples.position)
         d, *_ = x.shape
-        return jnp.mean(predictions, axis=0), obs_noise * jnp.eye(d)
+        noise = jnp.diag(jnp.std(jnp.squeeze(predictions), axis=0))
+        return jnp.mean(predictions, axis=0), noise
 
     return Agent(init_state, update, predict)

@@ -26,7 +26,6 @@ def binary_cross_entropy(labels, logprobs):
 def classification_loss(labels: chex.Array,
                         logprobs: chex.Array,
                         scale: chex.Array = None):
-
   nclasses = logprobs.shape[-1]
   if nclasses==1:
       return binary_cross_entropy(labels, logprobs)

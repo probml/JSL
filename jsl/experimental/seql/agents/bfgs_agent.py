@@ -1,17 +1,19 @@
+from functools import partial
 import jax.numpy as jnp
-from jax import vmap
 from jax.scipy.optimize import minimize
+
+from jaxopt import ScipyMinimize
 
 import chex
 import typing_extensions
-from typing import Any, NamedTuple
+from typing import Any, Dict, NamedTuple, Optional
 
 import warnings
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.utils import posterior_noise, mse
+from jsl.experimental.seql.utils import binary_cross_entropy, posterior_noise, mse
 
 Params = Any
 
@@ -36,8 +38,10 @@ class BeliefState(NamedTuple):
 
 
 class Info(NamedTuple):
+    # https://github.com/google/jaxopt/blob/73a7c48e8dbde912cecd37f3d90401e8d87d574e/jaxopt/_src/scipy_wrappers.py#L47
     # True if optimization succeeded
-    success: bool
+    fun_val: jnp.ndarray = None
+    success: bool = False
     '''
     0 means converged (nominal)
     1=max BFGS iters reached
@@ -46,23 +50,31 @@ class Info(NamedTuple):
     5=max line search iters reached
     -1=undefined
     '''
-    status: int
-    # final function value.
-    loss: float
+    status: int = -1
+    iter_num: int = 0
   
 
 def bfgs_agent(objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
+               tol: Optional[float] = None,
+               options: Optional[Dict[str, Any]] = None,
                obs_noise: float = 0.01,
                buffer_size: int = jnp.inf,
                threshold: int = 1):
     
+
+    partial_objective_fn = partial(objective_fn,
+                                   model_fn=model_fn)
+
+    bfgs = ScipyMinimize(fun=partial_objective_fn,
+                         tol=tol,
+                         options=options)
     assert threshold <= buffer_size
     
     memory = Memory(buffer_size)
     
     def init_state(x: chex.Array):
-        return BeliefState(jnp.squeeze(x))
+        return BeliefState(x)
 
     def update(belief: BeliefState,
                x: chex.Array,
@@ -73,19 +85,12 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
 
         if len(x_) < threshold:
             warnings.warn("There should be more data.", UserWarning)
-            info = Info(False, -1, jnp.inf)
-            return belief, info
+            return belief, Info()
 
-        optimize_results = minimize(objective_fn,
-                                    belief.params,
-                                    (x_, y_, model_fn),
-                                    method="BFGS")
-
-        info = Info(optimize_results.success,
-                    optimize_results.status,
-                    optimize_results.fun)
-        
-        return BeliefState(optimize_results.x), info
+        params, info = bfgs.run(belief.params,
+                            inputs=x_,
+                            outputs=y_)
+        return BeliefState(params), info
     
     def predict(belief: BeliefState,
                 x: chex.Array):

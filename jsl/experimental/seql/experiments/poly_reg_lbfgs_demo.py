@@ -6,7 +6,7 @@ from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
 
 from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
 from jsl.experimental.seql.utils import train
 
 
@@ -23,7 +23,7 @@ def callback_fn(env, obs_noise, timesteps, **kwargs):
     mu, sigma = belief.params, None
     filename = "poly_reg_lbfgs_ppd"
 
-    plot_posterior_predictive(env,
+    plot_regression_posterior_predictive(env,
                               mu,
                               sigma,
                               obs_noise,

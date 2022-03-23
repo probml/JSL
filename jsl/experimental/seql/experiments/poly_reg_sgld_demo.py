@@ -5,7 +5,7 @@ from jax import random
 from jsl.experimental.seql.agents.blackjax_nuts_agent import blackjax_nuts_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
-from jsl.experimental.seql.experiments.plotting import plot_posterior_predictive
+from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
 from jsl.experimental.seql.experiments.experiment_utils import MLP
 from jsl.experimental.seql.utils import train, mse
 
@@ -27,7 +27,7 @@ def callback_fn(env, obs_noise, timesteps, **kwargs):
     mu, sigma = belief.params, None
     filename = "poly_reg_sgld_ppd"
 
-    plot_posterior_predictive(env,
+    plot_regression_posterior_predictive(env,
                             mu,
                             sigma,
                             obs_noise,
