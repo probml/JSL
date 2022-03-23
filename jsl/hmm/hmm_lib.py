@@ -23,8 +23,6 @@ from jax.nn import softmax
 from jax.random import PRNGKey, split, normal
 from jsl.hmm.hmm_utils import hmm_sample_minibatches
 
-import superimport
-# !pip install flax
 import flax
 
 '''

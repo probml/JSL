@@ -3,7 +3,6 @@ This demo shows the parameter estimations of HMMs via Baulm-Welch algorithm on t
 Author : Aleyna Kara(@karalleyna)
 """
 
-# import superimport
 
 import time
 import numpy as np

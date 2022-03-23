@@ -3,7 +3,6 @@
 
 # Author: Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
 
-# import superimport
 
 import logging
 import distrax

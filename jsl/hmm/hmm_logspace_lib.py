@@ -12,7 +12,6 @@ from jax.nn import logsumexp, log_softmax, one_hot
 
 from functools import partial
 
-import superimport
 import flax
 import distrax
 

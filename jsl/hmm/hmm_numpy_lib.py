@@ -13,7 +13,6 @@ from dataclasses import dataclass
 import jax
 from jax.nn import softmax
 
-import superimport
 
 
 '''
