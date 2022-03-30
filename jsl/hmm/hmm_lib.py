@@ -9,11 +9,9 @@ from jax import lax
 from jax.scipy.special import logit
 from functools import partial
 
-import numpy as np
 import jax.numpy as jnp
 from scipy.special import softmax
 from jax import vmap
-from jax.ops import index_update, index
 from dataclasses import dataclass
 
 import jax
@@ -477,7 +475,7 @@ def compute_expected_obs_counts_jax(gamma, obs, n_states, n_obs):
 
     def scan_fn(BB, elems):
         o, g = elems
-        BB = index_update(BB, index[:, o], BB[:, o] + g)
+        BB = BB.at[:, o].set(BB[:, o] + g)
         return BB, jnp.zeros((0,))
 
     BB = jnp.zeros((n_states, n_obs))
