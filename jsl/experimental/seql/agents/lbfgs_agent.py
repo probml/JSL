@@ -1,7 +1,6 @@
 from functools import partial
 import warnings
 import jax.numpy as jnp
-from jax import vmap
 
 from jaxopt import LBFGS
 
@@ -11,7 +10,6 @@ from typing import Any, Callable, NamedTuple, Optional, Union
 from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.utils import posterior_noise
 
 
 Params = Any
@@ -135,8 +133,12 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
     
     def predict(belief: BeliefState,
                 x: chex.Array):
-        d, *_ = x.shape
-        noise = obs_noise * jnp.eye(d)
-        return model_fn(belief.params, x), noise
+        nsamples, *_ = x.shape
+
+        ppd_mean = model_fn(belief.params, x)
+        ppd_mean = ppd_mean.reshape((nsamples, -1))
+        noise = obs_noise * jnp.ones((nsamples, 1))
+
+        return ppd_mean, noise
 
     return Agent(init_state, update, predict)

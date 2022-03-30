@@ -52,7 +52,7 @@ class Info(NamedTuple):
     iter_num: int = 0
   
 
-def bfgs_agent(objective_fn: ObjectiveFn = mse,
+def lbfgsb_agent(objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
                tol: Optional[float] = None,
                options: Optional[Dict[str, Any]] = None,
@@ -65,7 +65,7 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
                                    model_fn=model_fn)
 
     bfgs = ScipyMinimize(fun=partial_objective_fn,
-                         method="BFGS",
+                         method="L-BFGS-B",
                          tol=tol,
                          options=options)
     assert threshold <= buffer_size

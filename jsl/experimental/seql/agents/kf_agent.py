@@ -25,6 +25,8 @@ class Info(NamedTuple):
 
 def kalman_filter_reg(obs_noise: float = 1.,
                       return_history: bool = False):
+    
+    
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
@@ -32,11 +34,11 @@ def kalman_filter_reg(obs_noise: float = 1.,
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        _, input_dim = x.shape
+        *_, input_dim = x.shape
 
         A, Q = jnp.eye(input_dim), 0
         C = lambda t: x[t][None, ...]
-
+        
         lds = LDS(A, C, Q, obs_noise, belief.mu, belief.Sigma)
         mu, Sigma, _, _ = kalman_filter(lds, y,
                                         return_history=return_history)
@@ -47,12 +49,17 @@ def kalman_filter_reg(obs_noise: float = 1.,
         
         return BeliefState(mu.reshape((-1, 1)), Sigma), Info()
 
+
     def predict(belief: BeliefState,
                 x: chex.Array):
+
+        ppd_mean = x @ belief.mu
         v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
         noise = v_posterior_noise(x, belief.Sigma, obs_noise)
-        noise = jnp.diag(jnp.squeeze(noise))
         
-        return x @ belief.mu, noise
+        nsamples, *_ = x.shape
+        noise = noise.reshape((nsamples, -1))
+        noise = ppd_mean.reshape((nsamples, -1))
+        return ppd_mean, noise
 
     return Agent(init_state, update, predict)
