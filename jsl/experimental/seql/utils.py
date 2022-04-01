@@ -1,6 +1,5 @@
-from typing import Callable
 import jax.numpy as jnp
-from jax import vmap, lax
+from jax import lax
 from jax.scipy.stats import multivariate_normal
 
 import optax
@@ -26,7 +25,6 @@ def binary_cross_entropy(labels, logprobs):
 def classification_loss(labels: chex.Array,
                         logprobs: chex.Array,
                         scale: chex.Array = None):
-
   nclasses = logprobs.shape[-1]
   if nclasses==1:
       return binary_cross_entropy(labels, logprobs)
@@ -34,15 +32,24 @@ def classification_loss(labels: chex.Array,
   xentropy = optax.softmax_cross_entropy(logits=logprobs, labels=one_hot_labels)
   return jnp.mean(xentropy)
 
-def regression_loss(targets:chex.Array,
-                    loc: chex.Array,
-                    scale: chex.Array):
-  # return jnp.mean(jnp.power(predictions - outputs, 2))
-  ll = multivariate_normal.logpdf(targets,
-                                  jnp.squeeze(loc),
-                                  scale,
-                                  allow_singular=None)
-  return -jnp.mean(ll)
+
+def categorical_log_likelihood(logprobs: chex.Array, 
+                               labels: chex.Array) -> float:
+  """Computes joint log likelihood based on probs and labels."""
+  num_data, nclasses = logprobs.shape
+  assert len(labels) == num_data
+  one_hot_labels = onehot(labels, num_classes=nclasses)
+  assigned_probs = logprobs * one_hot_labels
+  return jnp.sum(jnp.log(assigned_probs))
+
+
+def gaussian_log_likelihood(err: chex.Array,
+                            cov: chex.Array) -> float:
+  """Calculates the Gaussian log likelihood of a multivariate normal."""
+  first_term = len(err) * jnp.log(2 * jnp.pi)
+  _, second_term = jnp.linalg.slogdet(cov)
+  third_term = jnp.einsum('ai,ab,bi->i', err, jnp.linalg.pinv(cov), err)
+  return -0.5 * (first_term + second_term + third_term)
 
 
 def mse(params, inputs, outputs, model_fn):
@@ -57,22 +64,6 @@ def posterior_noise(x: chex.Array,
     return jnp.sqrt(obs_noise + x_.T.dot(sigma.dot(x_)))
 
 
-def posterior_predictive_distribution(X: chex.Array,
-                                      mu: chex.Array,
-                                      sigma: chex.Array,
-                                      obs_noise: float,
-                                      model_fn: Callable= lambda w, x: x @ w):
-
-    #Determine coefficient distribution
-    ppd_mean = model_fn(mu, X)
-    v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-    if sigma is None:
-        noise = obs_noise
-    else:
-        noise = v_posterior_noise(X, sigma, obs_noise)
-    return ppd_mean, noise
-
-
 # Main function
 def train(initial_belief_state, agent, env, nsteps, callback=None):
     #env.reset()
@@ -82,11 +73,11 @@ def train(initial_belief_state, agent, env, nsteps, callback=None):
 
     for t in range(nsteps):
         X_train, Y_train, X_test, Y_test = env.get_data(t)
-
+        
         belief_state, info = agent.update(belief_state, X_train, Y_train)
         
-        preds = agent.predict(belief_state, X_test)
-        reward = env.reward(*preds, Y_test)
+        preds= agent.predict(belief_state, X_test)
+        reward = env.reward(preds[0], t)
 
         if callback:
             if not isinstance(callback, list):

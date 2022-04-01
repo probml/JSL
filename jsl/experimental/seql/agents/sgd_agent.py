@@ -89,10 +89,13 @@ def sgd_agent(loss_fn: LossFn,
 
     def predict(belief: BeliefState,
             x: chex.Array): 
+        
         params = belief.params
-        mu_pred = model_fn(params, x)
-        d, *_ = mu_pred.shape
-        sigma_pred = obs_noise * jnp.eye(d)
-        return mu_pred, sigma_pred
+        ppd_mean = model_fn(params, x)
+
+        nsamples, *_ = ppd_mean.shape
+        ppd_cov = obs_noise * jnp.ones((nsamples, 1))
+        ppd_mean = ppd_mean.reshape((nsamples, -1))
+        return ppd_mean, ppd_cov
 
     return Agent(init_state, update, predict)

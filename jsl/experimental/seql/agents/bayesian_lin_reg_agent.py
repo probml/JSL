@@ -38,9 +38,14 @@ def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
 
     def predict(belief: BeliefState,
                 x: chex.Array):
+        ppd_mean = x @ belief.mu
         v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
         noise = v_posterior_noise(x, belief.Sigma, obs_noise)
-        noise = jnp.diag(jnp.squeeze(noise))
-        return x @ belief.mu, noise
+
+        nsamples, *_ = x.shape
+        noise = noise.reshape((nsamples, -1))
+        noise = ppd_mean.reshape((nsamples, -1))
+
+        return ppd_mean, noise
 
     return Agent(init_state, update, predict)
