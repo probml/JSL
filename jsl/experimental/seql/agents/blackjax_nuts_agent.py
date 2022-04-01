@@ -29,7 +29,7 @@ class ModelFn(typing_extensions.Protocol):
         ...
 
 
-class PotentialFn(typing_extensions.Protocol):
+class LogProbFN(typing_extensions.Protocol):
     def __call__(self,
                  params: Params,
                  x: chex.Array,
@@ -68,12 +68,12 @@ def inference_loop(rng_key, kernel, initial_state, num_samples):
 
 
 def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
-                        potential_fn: PotentialFn,
+                        logprob_fn: LogProbFN,
                         model_fn: ModelFn,
                         nsamples: int,
                         nwarmup: int,
-                        obs_noise: float = 1.,
                         nlast: int = 10, 
+                        obs_noise=1.,
                         buffer_size: int = 0,
                         threshold: int = 1):
 
@@ -104,7 +104,7 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
             
         @jit
         def partial_potential_fn(params):
-            return potential_fn(params, x_, y_, model_fn)  
+            return logprob_fn(params, x_, y_, model_fn)    
 
         
         state = nuts.new_state(belief.state.position,
@@ -127,9 +127,8 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                                              nuts_kernel,
                                              state,
                                              nsamples)
-
-
-        belief_state = BeliefState(tree_map(lambda x: x.mean(axis=0), states),
+                                   
+        belief_state = BeliefState(tree_map(lambda x: x[-1], states),
                                    step_size,
                                    inverse_mass_matrix,
                                    tree_map(lambda x: x[-nlast:], states)
@@ -139,7 +138,7 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
     def predict(belief: BeliefState,
                 x: chex.Array):
 
-        def get_predictions(samples):
+        def get_mean_predictions(samples):
 
             flat_tree, pytree_def = tree_flatten(samples)
             
@@ -150,8 +149,9 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
             
             return vmap(_predict)(flat_tree)
 
-        predictions = get_predictions(belief.samples.position)
-        noise = obs_noise + jnp.std(predictions, axis=0)**2
+        predictions = get_mean_predictions(belief.samples.position)
+        d, *_ = x.shape
+        noise = jnp.diag(jnp.std(jnp.squeeze(predictions), axis=0))
         return jnp.mean(predictions, axis=0), noise
 
     return Agent(init_state, update, predict)

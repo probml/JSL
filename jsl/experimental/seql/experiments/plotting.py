@@ -1,8 +1,6 @@
-
 import jax.numpy as jnp
 
 import seaborn as sns
-from matplotlib import pyplot as plt
 
 from functools import reduce
 
@@ -16,6 +14,7 @@ agents = { "kf": 0,
             "lbfgs": 5,
             "nuts": 6,
             "sgld": 7,
+            "scikit":8
             }
 
 colors = {k : sns.color_palette("Paired")[v]
@@ -87,20 +86,20 @@ def plot_classification_2d(ax,
     sns.set_style("whitegrid")
     cmap = sns.diverging_palette(250, 12, s=85, l=25, as_cmap=True)
 
-    X_train, Y_train = sort_data(env.X_train[:t+1], env.y_train[:t+1])
-    nclasses = Y_train.max()
+    x, y = sort_data(env.X_test[:t+1], env.y_test[:t+1])
+    nclasses = y.max()
 
     if nclasses == 1 and grid_preds.shape[-1] == 1:
         grid_preds = jnp.hstack([1- grid_preds, grid_preds])
 
-    ax.contourf(grid[:, 1].reshape((100, 100)),
+    '''ax.contourf(grid[:, 1].reshape((100, 100)),
                 grid[:, 2].reshape((100, 100)),
                 grid_preds[:, 1].reshape((100,100)),
-                cmap=cmap)
+                cmap=cmap)'''
     
     for cls in range(nclasses + 1):
-        indices = jnp.argwhere(Y_train == cls)
+        indices = jnp.argwhere(y == cls)
         
         # Plot training data
-        ax.scatter(X_train[indices, 1],
-                   X_train[indices, 2])
+        ax.scatter(x[indices, 1],
+                   x[indices, 2])

@@ -1,6 +1,6 @@
 import jax.numpy as jnp
 from jax import lax
-from jax.scipy.stats import multivariate_normal
+import distrax
 
 import optax
 
@@ -22,13 +22,14 @@ def binary_cross_entropy(labels, logprobs):
     loss = labels * logprobs + (1-labels) * jnp.log(1 - probs)
     return -jnp.mean(loss)
 
-def classification_loss(labels: chex.Array,
+def cross_entropy_loss(labels: chex.Array,
                         logprobs: chex.Array,
                         scale: chex.Array = None):
   nclasses = logprobs.shape[-1]
   if nclasses==1:
       return binary_cross_entropy(labels, logprobs)
-  one_hot_labels = onehot(labels, num_classes=nclasses)
+  one_hot_labels = onehot(jnp.squeeze(labels, axis=-1),
+                          num_classes=nclasses)
   xentropy = optax.softmax_cross_entropy(logits=logprobs, labels=one_hot_labels)
   return jnp.mean(xentropy)
 
@@ -43,13 +44,10 @@ def categorical_log_likelihood(logprobs: chex.Array,
   return jnp.sum(jnp.log(assigned_probs))
 
 
-def gaussian_log_likelihood(err: chex.Array,
-                            cov: chex.Array) -> float:
-  """Calculates the Gaussian log likelihood of a multivariate normal."""
-  first_term = len(err) * jnp.log(2 * jnp.pi)
-  _, second_term = jnp.linalg.slogdet(cov)
-  third_term = jnp.einsum('ai,ab,bi->i', err, jnp.linalg.pinv(cov), err)
-  return -0.5 * (first_term + second_term + third_term)
+def gaussian_log_likelihood(mu: chex.Array,
+                            cov: chex.Array,
+                            predictions) -> float:
+  return jnp.sum(distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu,axis=-1), cov).log_prob(predictions))
 
 
 def mse(params, inputs, outputs, model_fn):

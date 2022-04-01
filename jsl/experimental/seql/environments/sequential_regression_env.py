@@ -37,7 +37,7 @@ class SequentialRegressionEnvironment(SequentialDataEnvironment):
     
     cov = self.obs_noise * jnp.eye(len(predictions))
     if train:
-      err = self.y_train[t] - predictions
+      mu = self.y_train[t] #- predictions
     else:
-      err = self.y_test[t] - predictions
-    return gaussian_log_likelihood(err, cov)
+      mu = self.y_test[t] #- predictions
+    return gaussian_log_likelihood(mu, cov, predictions)

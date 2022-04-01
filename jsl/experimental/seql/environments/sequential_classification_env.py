@@ -21,14 +21,6 @@ class SequentialClassificationEnvironment(SequentialDataEnvironment):
                logprobs: chex.Array,
                key: Optional[chex.PRNGKey] = None):
 
-    super().__init__(X_train,
-                    y_train,
-                    X_test,
-                    y_test,
-                    ground_truth,
-                    train_batch_size,
-                    test_batch_size,
-                    key)
 
     ntrain = len(y_train)
     ntest = len(y_test)
@@ -39,6 +31,15 @@ class SequentialClassificationEnvironment(SequentialDataEnvironment):
 
     self.train_logprobs =jnp.reshape(logprobs[:ntrain], [ntrain_batches, train_batch_size, out])
     self.test_logprobs =jnp.reshape(logprobs[ntrain:], [ntest_batches, test_batch_size, out])
+    
+    super().__init__(X_train,
+                    y_train,
+                    X_test,
+                    y_test,
+                    ground_truth,
+                    train_batch_size,
+                    test_batch_size,
+                    key)
 
   def reward(self,
              predictions: chex.Array, 
@@ -52,5 +53,5 @@ class SequentialClassificationEnvironment(SequentialDataEnvironment):
 
   def shuffle_data(self, key: chex.PRNGKey):
     super().shuffle_data(key)
-    self.train_logprobs = self.logprobs[self.train_indices]
-    self.test_logprobs = self.logprobs[self.test_indices]
+    self.train_logprobs = self.train_logprobs[self.train_indices]
+    self.test_logprobs = self.test_logprobs[self.test_indices]

@@ -4,7 +4,7 @@ from jax import random, jit, nn, vmap
 import haiku as hk
 
 import chex
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Union
 
 from sklearn.preprocessing import PolynomialFeatures
 from jsl.experimental.seql.environments.sequential_classification_env import SequentialClassificationEnvironment
@@ -14,9 +14,12 @@ from jsl.experimental.seql.environments.sequential_regression_env import Sequent
 from jsl.experimental.seql.environments.sequential_torch_env import SequentialTorchEnvironment
 
 
-def gaussian_sampler(key: chex.PRNGKey, shape: Tuple) -> chex.Array:
-    # shape: (num_samples: int, input_dim: int)
-    return random.normal(key, shape)
+def make_gaussian_sampler(loc: Union[chex.Array, float],
+                          scale:  Union[chex.Array, float]):
+    def gaussian_sampler(key: chex.PRNGKey, shape: Tuple) -> chex.Array:
+        return loc + scale * random.normal(key, shape)
+    return gaussian_sampler
+
 
 def make_evenly_spaced_x_sampler(max_val: float, use_bias: bool= True, min_val: float = 0)->Callable:
 
@@ -33,12 +36,19 @@ def make_evenly_spaced_x_sampler(max_val: float, use_bias: bool= True, min_val: 
             else:
                 X = X.reshape((-1, 1))
         else:
-            nx = 10 # jnp.sqrt(nsamples)
-            ny = 5
-            x = jnp.linspace(min_val, max_val, nx)
-            y = jnp.linspace(min_val, max_val, ny)
-            xx, yy= jnp.meshgrid(x,y)
-            X = jnp.array((xx.ravel(), yy.ravel())).T #10x10=100 e ntrain nasıl çalışıyo o zaman
+            step_size = (max_val - min_val) / float(nsamples)
+            # define the x and y scale
+            x = jnp.arange(min_val, max_val, step_size)
+            y = jnp.arange(min_val, max_val, step_size)
+           
+            # create all of the lines and rows of the grid
+            xx, yy = jnp.meshgrid(x, y)
+            
+            # flatten each grid to a vector
+            r1, r2 = xx.flatten(), yy.flatten()
+            r1, r2 = r1.reshape((len(r1), 1)), r2.reshape((len(r2), 1))
+            # horizontal stack vectors to create x1,x2 input for the model
+            X = jnp.hstack((r1,r2))
         return X
         
     return eveny_spaced_x_sampler
@@ -66,8 +76,8 @@ def make_bimodel_sampler(mixing_parameter: float,
         n2 = int(nsamples * (1 - mixing_parameter))
         
         x1_key, x2_key = random.split(key)
-        x1 = gaussian_sampler(x1_key, (n1, nfeatures))*sigma1 + mu1
-        x2 = gaussian_sampler(x2_key, (n2, nfeatures))*sigma2 + mu2
+        x1 = random.normal(x1_key, (n1, nfeatures))*sigma1 + mu1
+        x2 = random.normal(x2_key, (n2, nfeatures))*sigma2 + mu2
         return jnp.vstack([x1, x2])
         
     return bimodel_sampler
@@ -79,14 +89,19 @@ def make_sin_wave_regression_environment(key: chex.PRNGKey,
                                         obs_noise: float=0.01,
                                         train_batch_size: int=1,
                                         test_batch_size: int=1,
-                                        x_train_generator: Callable=gaussian_sampler,
-                                        x_test_generator: Callable=gaussian_sampler,
+                                        x_train_generator: Callable=random.normal,
+                                        x_test_generator: Callable=random.normal,
                                         bias: bool = True,
                                         shuffle: bool = False):
 
     train_key, test_key, noise_key, env_key = random.split(key, 4)
     X_train = x_train_generator(train_key, (ntrain, 1))
     X_test = x_test_generator(test_key, (ntest, 1))
+    
+    ntrain = len(X_train)
+    ntest = len(X_test)
+
+
     X = jnp.vstack([X_train, X_test])
     
     if obs_noise > 0.0:
@@ -141,15 +156,18 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
                                                 obs_noise: float=0.01,
                                                 train_batch_size: int=1,
                                                 test_batch_size: int=1,
-                                                x_train_generator: Callable=gaussian_sampler,
-                                                x_test_generator: Callable=gaussian_sampler,
+                                                x_train_generator: Callable=random.normal,
+                                                x_test_generator: Callable=random.normal,
                                                 shuffle: bool = False):
 
 
   train_key, test_key, env_key = random.split(key, 3)
-  
+
   X_train = x_train_generator(train_key, (ntrain, nfeatures))
   X_test = x_test_generator(test_key, (ntest, nfeatures))
+  
+  ntrain = len(X_train)
+  ntest = len(X_test)
 
   X = jnp.vstack([X_train, X_test])
   poly = PolynomialFeatures(degree)
@@ -160,10 +178,12 @@ def make_random_poly_classification_environment(key: chex.PRNGKey,
   if obs_noise > 0.0:
     nsamples = ntrain + ntest
     noise = random.normal(key, (nsamples, nclasses)) * obs_noise
-    
+ 
   logprobs = nn.log_softmax(Phi @ w + noise)
   Y = jnp.argmax(logprobs, axis=-1).reshape((-1, 1))
   
+  
+
   X_train = Phi[:ntrain]
   X_test = Phi[ntrain:]
   y_train = Y[:ntrain]
@@ -197,14 +217,18 @@ def make_random_poly_regression_environment(key: chex.PRNGKey,
                                             obs_noise: float=0.01,
                                             train_batch_size: int=1,
                                             test_batch_size: int=1,
-                                            x_train_generator: Callable=gaussian_sampler,
-                                            x_test_generator: Callable=gaussian_sampler,
+                                            x_train_generator: Callable=random.normal,
+                                            x_test_generator: Callable=random.normal,
                                             shuffle: bool=False):
 
 
   train_key, test_key, w_key = random.split(key, 3)
   X_train = x_train_generator(train_key, (ntrain, 1))
   X_test = x_test_generator(test_key, (ntest, 1))
+
+  ntrain = len(X_train)
+  ntest = len(X_test)
+
   X = jnp.vstack([X_train, X_test])
 
   poly = PolynomialFeatures(degree)
@@ -255,8 +279,8 @@ def make_random_linear_classification_environment(key: chex.PRNGKey,
                                             obs_noise: float=0.0,
                                             train_batch_size: int=1,
                                             test_batch_size: int=1,
-                                            x_train_generator: Callable=gaussian_sampler,
-                                            x_test_generator: Callable=gaussian_sampler,
+                                            x_train_generator: Callable=random.normal,
+                                            x_test_generator: Callable=random.normal,
                                             shuffle: bool = False):
     # https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/datasets/_samples_generator.py#L506
 
@@ -265,6 +289,10 @@ def make_random_linear_classification_environment(key: chex.PRNGKey,
 
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
+
+    ntrain = len(X_train)
+    ntest = len(X_test)
+
     X = jnp.vstack([X_train, X_test])
 
     # Generate a ground truth model with only n_informative features being non
@@ -312,8 +340,8 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
                                             obs_noise: float=0.0,
                                             train_batch_size: int=1,
                                             test_batch_size: int=1,
-                                            x_train_generator: Callable=gaussian_sampler,
-                                            x_test_generator: Callable=gaussian_sampler,
+                                            x_train_generator: Callable=random.normal,
+                                            x_test_generator: Callable=random.normal,
                                             shuffle: bool = False):
     # https://github.com/scikit-learn/scikit-learn/blob/7e1e6d09bcc2eaeba98f7e737aac2ac782f0e5f1/sklearn/datasets/_samples_generator.py#L506
 
@@ -323,6 +351,10 @@ def make_random_linear_regression_environment(key: chex.PRNGKey,
 
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
+
+    ntrain = len(X_train)
+    ntest = len(X_test)
+
     X = jnp.vstack([X_train, X_test])
 
     # Generate a ground truth model with only n_informative features being non
@@ -381,7 +413,31 @@ def make_mlp(key: chex.PRNGKey,
             y = hk.Linear(hidden)(y)
             y = nn.relu(y)
         return hk.Linear(ntargets)(y)
-  
+    return net_fn 
+
+
+
+def make_classification_mlp_environment(key: chex.PRNGKey,
+                                        nfeatures: int,
+                                        ntargets: int,
+                                        ntrain: int,
+                                        ntest: int,
+                                        temperature: float,
+                                        hidden_layer_sizes: List[int],
+                                        train_batch_size: int=1,
+                                        test_batch_size: int=1,
+                                        x_train_generator: Callable=random.normal,
+                                        x_test_generator: Callable=random.normal,
+                                        shuffle: bool = False):
+
+    train_key, test_key, y_key, env_key = random.split(key, 4)
+    net_fn = make_mlp(y_key,
+                    nfeatures,
+                    ntargets,
+                    temperature,
+                    hidden_layer_sizes)
+
+
     transformed = hk.without_apply_rng(hk.transform(net_fn))
 
     dummy_input = jnp.zeros([1, nfeatures])
@@ -394,31 +450,14 @@ def make_mlp(key: chex.PRNGKey,
 
     y_predictor = jit(forward)
 
-    return y_predictor
-
-def make_classification_mlp_environment(key: chex.PRNGKey,
-                                        nfeatures: int,
-                                        ntargets: int,
-                                        ntrain: int,
-                                        ntest: int,
-                                        temperature: float,
-                                        hidden_layer_sizes: List[int],
-                                        train_batch_size: int=1,
-                                        test_batch_size: int=1,
-                                        x_train_generator: Callable=gaussian_sampler,
-                                        x_test_generator: Callable=gaussian_sampler,
-                                        shuffle: bool = False):
-
-    train_key, test_key, y_key, env_key = random.split(key, 4)
-    y_predictor = make_mlp(y_key,
-                    nfeatures,
-                    ntargets,
-                    temperature,
-                    hidden_layer_sizes)
 
     # Generates training data for given problem
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
+
+    ntrain = len(X_train)
+    ntest = len(X_test)
+    
     X = jnp.vstack([X_train, X_test])
 
     # Generate environment function across x_train
@@ -444,11 +483,14 @@ def make_classification_mlp_environment(key: chex.PRNGKey,
     else: 
         env_key = None
 
-    env = SequentialDataEnvironment(X_train, y_train,
-                                    X_test, y_test,
-                                    train_batch_size, test_batch_size,
-                                    classification=True,
-                                    key=env_key)
+
+    env = SequentialClassificationEnvironment(X_train, y_train,
+                                            X_test, y_test,
+                                            params,
+                                            train_batch_size,
+                                            test_batch_size,
+                                            logprobs=train_logits,
+                                            key=env_key)
     return env
 
 
@@ -461,20 +503,37 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
                                     hidden_layer_sizes: List[int],
                                     train_batch_size: int=1,
                                     test_batch_size: int=1,
-                                    x_train_generator: Callable=gaussian_sampler,
-                                    x_test_generator: Callable=gaussian_sampler,
+                                    x_train_generator: Callable=random.normal,
+                                    x_test_generator: Callable=random.normal,
                                     shuffle: bool = False):
 
-    train_key, test_key, y_key, env_key = random.split(key, 3)
-    y_predictor = make_mlp(y_key,
+    train_key, test_key, y_key, env_key = random.split(key, 4)
+    net_fn = make_mlp(y_key,
                     nfeatures,
                     ntargets,
                     temperature,
                     hidden_layer_sizes)
 
+
+    transformed = hk.without_apply_rng(hk.transform(net_fn))
+
+    dummy_input = jnp.zeros([1, nfeatures])
+    params = transformed.init(key, dummy_input)
+
+    assert temperature > 0.0
+    
+    def forward(x: chex.Array):
+        return transformed.apply(params, x) / temperature
+
+    y_predictor = jit(forward)
+
     # Generates training data for given problem
     X_train = x_train_generator(train_key, (ntrain, nfeatures))
     X_test = x_test_generator(test_key, (ntest, nfeatures))
+
+    ntrain = len(X_train)
+    ntest = len(X_test)
+
     X = jnp.vstack([X_train, X_test])
 
     # Generate environment function across x_train
@@ -490,11 +549,15 @@ def make_regression_mlp_environment(key: chex.PRNGKey,
     else: 
         env_key = None
 
-    env = SequentialDataEnvironment(X_train, y_train,
-                                    X_test, y_test,
-                                    train_batch_size, test_batch_size,
-                                    classification=False,
-                                    key=env_key)
+    env = SequentialRegressionEnvironment(X_train,
+                                          y_train,
+                                          X_test,
+                                          y_test,
+                                          y_predictor,
+                                          train_batch_size,
+                                          test_batch_size,
+                                          obs_noise=0.,
+                                          key=env_key)
     return env
     
 

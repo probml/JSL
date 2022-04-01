@@ -19,7 +19,7 @@ class SequentialDataEnvironment:
     self.ground_truth = ground_truth 
 
     ntrain, nfeatures = X_train.shape
-    ntest, out = y_train.shape
+    ntest, out = y_test.shape
 
     # TODO: It will produce an error if ntrain % train_batch_size != 0
     ntrain_batches = ntrain // train_batch_size

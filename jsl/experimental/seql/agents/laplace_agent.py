@@ -1,7 +1,7 @@
 from functools import partial
 import typing_extensions
 import jax.numpy as jnp
-from jax import hessian, vmap
+from jax import hessian, vmap, tree_map
 
 import chex
 from typing import Any, NamedTuple, Optional
@@ -71,18 +71,11 @@ def laplace_agent(solver: JaxOptSolver,
                                     outputs=y_)
 
         Sigma = hessian(partial_energy_fn)(params)
-        return BeliefState(params, jnp.squeeze(Sigma)), info
+        return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
     
     def predict(belief: BeliefState,
                 x: chex.Array):
-        nsamples, *_ = x.shape
         ppd_mean = model_fn(belief.mu, x)
-        v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-        '''noise = v_posterior_noise(x, belief.Sigma, obs_noise)
-        
-        nsamples, *_ = x.shape
-        noise = noise.reshape((nsamples, -1))
-        noise = ppd_mean.reshape((nsamples, -1))'''
         return ppd_mean, None
 
     return Agent(init_state, update, predict)

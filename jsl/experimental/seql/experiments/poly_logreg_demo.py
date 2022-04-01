@@ -1,3 +1,4 @@
+from itertools import product
 import jax.numpy as jnp
 from jax import random, tree_leaves, tree_map
 from jax import nn 
@@ -7,18 +8,18 @@ from matplotlib import pyplot as plt
 import optax
 from sklearn.preprocessing import PolynomialFeatures
 from jsl.experimental.seql.agents import eekf_agent
-from jsl.experimental.seql.agents.bayesian_lin_reg_agent import bayesian_reg
 
 
 from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
 from jsl.experimental.seql.agents.blackjax_nuts_agent import blackjax_nuts_agent
 from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
+from jsl.experimental.seql.agents.scikit_log_reg_agent import scikit_log_reg_agent
 from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
-from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_classification_environment, make_random_poly_regression_environment
+from jsl.experimental.seql.environments.base import make_random_poly_classification_environment
 from jsl.experimental.seql.experiments.bimodal_reg_demo import loglikelihood_fn
-from jsl.experimental.seql.experiments.plotting import plot_classification_2d, plot_regression_posterior_predictive
-from jsl.experimental.seql.utils import binary_cross_entropy, classification_loss, mse, train
+from jsl.experimental.seql.experiments.plotting import sort_data
+from jsl.experimental.seql.utils import cross_entropy_loss, train
 from jsl.nlds.base import NLDS
 
 
@@ -29,7 +30,7 @@ def fx(w, x):
 def Rt(w, x): return (x @ w * (1 - x @ w))[None, None]
 
 def model_fn(w, x):
-    return x @ w
+    return nn.log_softmax(x @ w, axis=-1)
 
 def logprior_fn(params, strength=0.2):
     leaves = tree_leaves(params)
@@ -38,13 +39,14 @@ def logprior_fn(params, strength=0.2):
   
 def loglikelihood_fn(params, x, y, model_fn):
     logprobs = model_fn(params, x)
-    return -classification_loss(y, logprobs)
+    return -cross_entropy_loss(y, logprobs)
 
 def logjoint_fn(params, inputs, outputs, model_fn, strength=0.2):
-    return loglikelihood_fn(params, inputs, outputs, model_fn) + logprior_fn(params, strength)
+    return loglikelihood_fn(params, inputs, outputs, model_fn) #+ logprior_fn(params, strength) / len(inputs)
 
 def neg_logjoint_fn(params, inputs, outputs, model_fn, strength=0.2):
     return -logjoint_fn(params, inputs, outputs, model_fn, strength)
+
 
 def print_accuracy(logprobs, ytest):
     ytest_ = jnp.squeeze(ytest)
@@ -71,34 +73,58 @@ def callback_fn(agent, env, agent_name, **kwargs):
     belief = kwargs["belief_state"]
     
     poly = PolynomialFeatures(kwargs["degree"])
-    grid = poly.fit_transform(jnp.mgrid[-10:10:100j, -10:10:100j].reshape((2, -1)).T)
+    *_, nfeatures = env.X_train.shape
+    X = env.X_test.reshape((-1, nfeatures))
+    X = jnp.vstack([env.X_train.reshape((-1, nfeatures)), X])
+    min_x, max_x = jnp.min(X[:, 1]), jnp.max(X[:, 1])
+    min_y, max_y = jnp.min(X[:, 2]), jnp.max(X[:, 2])
     
-    grid_preds = nn.softmax(agent.predict(belief, grid)[0], axis=-1)
+    # define the x and y scale
+    x1grid = jnp.arange(min_x, max_x, 0.1)
+    x2grid = jnp.arange(min_y, max_y, 0.1)
 
-    
-    ax = kwargs["fig"].add_subplot(kwargs["nrows"],
-                                   kwargs["ncols"],
-                                   subplot_idx)
+    # create all of the lines and rows of the grid
+    xx, yy = jnp.meshgrid(x1grid, x2grid)
 
-    belief = kwargs["belief_state"]
+    # flatten each grid to a vector
+    r1, r2 = xx.flatten(), yy.flatten()
+    r1, r2 = r1.reshape((len(r1), 1)), r2.reshape((len(r2), 1))
+    # horizontal stack vectors to create x1,x2 input for the model
+    grid = jnp.hstack((r1,r2))
 
-    plot_classification_2d(ax,
-                           env,
-                           grid,
-                           grid_preds,
-                           kwargs["t"])
+    grid_preds = nn.softmax(agent.predict(belief,
+                                          poly.fit_transform(grid))[0], axis=-1)
+    # keep just the probabilities for class 0
+    grid_preds = grid_preds[:, 0]
+    # reshape the predictions back into a grid
+    grid_preds = grid_preds.reshape(xx.shape)
+
+    # plot the grid of x, y and z values as a surface
+    c = ax.contourf(xx, yy, grid_preds, cmap='RdBu')
+    plt.colorbar(c)
 
     if "title" in kwargs:
         ax.set_title(kwargs["title"], fontsize=32)
     else:
         ax.set_title("t={}".format(kwargs["t"]), fontsize=32)
 
-    plt.tight_layout()
-    plt.savefig("jaks.png")
+    t = kwargs["t"]
+
+    x, y = sort_data(env.X_test[:t+1], env.y_test[:t+1])
+    nclasses = y.max()
+
+    
+    for cls in range(nclasses + 1):
+        indices = jnp.argwhere(y == cls)
+        
+        # Plot training data
+        ax.scatter(x[indices, 1],
+                   x[indices, 2])
+    plt.savefig("jakjs.png")
 
 def initialize_params(agent_name, **kwargs):
     nfeatures = kwargs["nfeatures"]
-    mu0 = jnp.zeros((nfeatures, 2))
+    mu0 = random.normal(random.PRNGKey(0), (nfeatures, 2))
     if agent_name == "bayes" or  agent_name == "eekf":
         mu0 = jnp.zeros((nfeatures, 2))
         Sigma0 = jnp.eye(nfeatures)
@@ -125,18 +151,14 @@ def sweep(agents, env, train_batch_size, ntrain,
         params = initialize_params(agent_name, **init_kwargs)
         belief = agent.init_state(*params)
 
-
         big_ax.set_title(agent_name.upper(), fontsize=36, y=1.2)
+
         # Turn off axis lines and ticks of the big subplot 
         # obs alpha is 0 in RGBA string!
-        big_ax.tick_params(labelcolor=(1.,1.,1., 0.0), 
-                           top='off',
-                           bottom='off',
-                           left='off',
-                           right='off')
+        big_ax.tick_params(labelcolor=(1.,1.,1., 0.0), top='off', bottom='off', left='off', right='off')
         # removes the white frame
         big_ax._frameon = False
-        
+            
         partial_callback = lambda **kwargs: callback_fn(agent,
                                                         env(train_batch_size),
                                                         agent_name,
@@ -146,8 +168,11 @@ def sweep(agents, env, train_batch_size, ntrain,
                                                         idx=idx,
                                                         **init_kwargs,
                                                         **kwargs)
-        train(belief, agent, env(train_batch_size),
+        
+        environment = env(train_batch_size)
+        train(belief, agent, environment,
               nsteps=nsteps, callback=partial_callback)
+        
 
         if batch_agents_included:
             batch_agent = init_kwargs["batch_agents"][agent_name]
@@ -170,14 +195,10 @@ def sweep(agents, env, train_batch_size, ntrain,
 def main():
     key = random.PRNGKey(0)
     
-    min_val, max_val = -3, 3
-    x_test_generator = make_evenly_spaced_x_sampler(max_val,
-                                                    use_bias=False,
-                                                    min_val=min_val)
-
     degree = 3
-    ntrain, ntest = 50, 50
-    train_batch_size = 5
+    ntrain, ntest = 100, 100
+    batch_size = 10
+    nsteps = 10
     nfeatures, nclasses = 2, 2
 
     env_key, nuts_key, sgld_key = random.split(key, 3)
@@ -191,9 +212,8 @@ def main():
                                                                         obs_noise=obs_noise,
                                                                         train_batch_size=batch_size,
                                                                         test_batch_size=batch_size,
-                                                                        x_train_generator=x_test_generator)
+                                                                        shuffle=False)
                                                     
-    nsteps = 10
     buffer_size = ntrain
 
     input_dim = 10
@@ -211,7 +231,7 @@ def main():
     strength = obs_noise / tau
     partial_objective_fn = partial(neg_logjoint_fn, strength=strength)
 
-    nepochs = 10
+    nepochs = 20
 
     sgd = sgd_agent(partial_objective_fn,
                     model_fn,
@@ -227,7 +247,7 @@ def main():
                         buffer_size=buffer_size,
                         nepochs=nepochs*nsteps)
 
-    nsamples, nwarmup = 200, 100
+    nsamples, nwarmup = 500, 300
     nuts = blackjax_nuts_agent(nuts_key,
                                 loglikelihood_fn,
                                 model_fn,
@@ -245,15 +265,17 @@ def main():
                                 obs_noise=obs_noise,
                                 buffer_size=buffer_size)
 
+    scikit_agent = scikit_log_reg_agent(buffer_size=buffer_size)
+
     partial_logprob_fn = partial(loglikelihood_fn,
                                  model_fn=model_fn)
-    dt = 1e-4
+    dt = 1e-5
     sgld = sgld_agent(sgld_key,
                     partial_logprob_fn,
                     logprior_fn,
                     model_fn,
                     dt = dt,
-                    batch_size=train_batch_size,
+                    batch_size=batch_size,
                     nsamples=nsamples,
                     obs_noise=obs_noise,
                     buffer_size=buffer_size)
@@ -264,7 +286,7 @@ def main():
                             logprior_fn,
                             model_fn,
                             dt = dt,
-                            batch_size=train_batch_size,
+                            batch_size=batch_size,
                             nsamples=nsamples*nsteps,
                             obs_noise=obs_noise,
                             buffer_size=buffer_size)
@@ -286,11 +308,11 @@ def main():
                     history_size=buffer_size)
 
     agents = {
+              "sgld":sgld,
+              "scikit":scikit_agent,
               "sgd": sgd,
               "bfgs": bfgs,
               "lbfgs": lbfgs,
-              "nuts": nuts,
-              "sgld":sgld,
               }
     
     
@@ -300,16 +322,15 @@ def main():
                     "nuts": batch_nuts,
                     "sgld": batch_sgld,
                     "bfgs": batch_bfgs,
-                    "lbfgs": batch_lbfgs
+                    "lbfgs": batch_lbfgs,
+                    "scikit": scikit_agent,
                     }
         
-    sweep(agents, env, train_batch_size,
+    sweep(agents, env, batch_size,
           ntrain, nsteps,
           nfeatures=input_dim,
           obs_noise=obs_noise,
           batch_agents=batch_agents,
-          min_val=min_val,
-          max_val=max_val,
           timesteps=list(range(nsteps)),
           degree=degree)
 

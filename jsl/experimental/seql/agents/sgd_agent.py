@@ -91,6 +91,9 @@ def sgd_agent(loss_fn: LossFn,
             x: chex.Array): 
         
         params = belief.params
+        print(x.shape)
+        from jax import tree_map
+        print(tree_map(lambda x: x.shape, belief.params))
         ppd_mean = model_fn(params, x)
 
         nsamples, *_ = ppd_mean.shape
