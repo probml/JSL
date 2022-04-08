@@ -11,11 +11,9 @@ import jax.numpy as jnp
 
 import typing_extensions
 from typing import Any, NamedTuple, Union
+
 from jsl.experimental.seql.agents.agent_utils import Memory
-
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.agents.bfgs_agent import ModelFn
-
 
 Params = Any
 Samples = Any
@@ -48,6 +46,7 @@ class BeliefState(NamedTuple):
 class Info(NamedTuple):
     ...
 
+
 class NutsState(NamedTuple):
     # https://github.com/blackjax-devs/blackjax/blob/fd83abf6ce16f2c420c76772ff2623a7ee6b1fe5/blackjax/mcmc/integrators.py#L12
     position: chex.ArrayTree
@@ -72,19 +71,17 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                         model_fn: ModelFn,
                         nsamples: int,
                         nwarmup: int,
-                        nlast: int = 10, 
+                        nlast: int = 10,
                         obs_noise=1.,
                         buffer_size: int = 0,
                         threshold: int = 1):
-
     rng_key = hk.PRNGSequence(key)
 
-    if buffer_size==jnp.inf:
+    if buffer_size == jnp.inf:
         buffer_size = 0
 
-    assert threshold <= buffer_size or buffer_size==0
+    assert threshold <= buffer_size or buffer_size == 0
     memory = Memory(buffer_size)
-
 
     def init_state(initial_position: Params):
         nuts_state = NutsState(initial_position)
@@ -94,29 +91,27 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                x: chex.Array,
                y: chex.Array):
 
-
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
         if len(x_) < threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, Info()
-            
+
         @jit
         def partial_potential_fn(params):
-            return logprob_fn(params, x_, y_, model_fn)    
+            return logprob_fn(params, x_, y_, model_fn)
 
-        
         state = nuts.new_state(belief.state.position,
-                                partial_potential_fn)
+                               partial_potential_fn)
 
         kernel_generator = lambda step_size, inverse_mass_matrix: nuts.kernel(partial_potential_fn,
-                                                                            step_size,
-                                                                            inverse_mass_matrix)
+                                                                              step_size,
+                                                                              inverse_mass_matrix)
         final_state, (step_size, inverse_mass_matrix), info = stan_warmup.run(next(rng_key),
-                                                                            kernel_generator,
-                                                                            state,
-                                                                            nwarmup)
+                                                                              kernel_generator,
+                                                                              state,
+                                                                              nwarmup)
 
         # Inference
         nuts_kernel = jit(nuts.kernel(partial_potential_fn,
@@ -124,34 +119,36 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
                                       inverse_mass_matrix))
 
         final, states = inference_loop(next(rng_key),
-                                             nuts_kernel,
-                                             state,
-                                             nsamples)
-                                   
-        belief_state = BeliefState(tree_map(lambda x: x[-1], states),
+                                       nuts_kernel,
+                                       state,
+                                       nsamples)
+
+        belief_state = BeliefState(tree_map(lambda x: jnp.mean(x, axis=0), states),
                                    step_size,
                                    inverse_mass_matrix,
                                    tree_map(lambda x: x[-nlast:], states)
                                    )
         return belief_state, Info()
-    
+
     def predict(belief: BeliefState,
                 x: chex.Array):
 
         def get_mean_predictions(samples):
-
             flat_tree, pytree_def = tree_flatten(samples)
-            
+
             def _predict(*args):
                 pytree = tree_unflatten(pytree_def, args[0])
 
                 return model_fn(pytree, x)
-            
+
             return vmap(_predict)(flat_tree)
 
         predictions = get_mean_predictions(belief.samples.position)
-        d, *_ = x.shape
-        noise = jnp.diag(jnp.std(jnp.squeeze(predictions), axis=0))
-        return jnp.mean(predictions, axis=0), noise
+        predictions = jnp.mean(predictions, axis=0)
+
+        nsamples = len(x)
+        predictions = predictions.reshape((nsamples, -1))
+
+        return predictions
 
     return Agent(init_state, update, predict)

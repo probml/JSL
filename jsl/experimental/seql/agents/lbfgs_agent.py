@@ -84,13 +84,11 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
         Algorithm 7.5 (page 179).
     '''
 
-
     partial_objective_fn = partial(objective_fn,
                                    model_fn=model_fn)
 
-
     assert threshold <= buffer_size
-    
+
     memory = Memory(buffer_size)
 
     lbfgs = LBFGS(partial_objective_fn,
@@ -109,15 +107,12 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
                   unroll,
                   verbose)
 
-
     def init_state(params: Params):
         return BeliefState(params)
-    
 
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -125,20 +120,18 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
-
         params, info = lbfgs.run(belief.params,
                                  inputs=x_,
                                  outputs=y_)
         return BeliefState(params), info
-    
+
     def predict(belief: BeliefState,
                 x: chex.Array):
-        nsamples, *_ = x.shape
 
-        ppd_mean = model_fn(belief.params, x)
-        ppd_mean = ppd_mean.reshape((nsamples, -1))
-        noise = obs_noise * jnp.ones((nsamples, 1))
+        nsamples = len(x)
+        predictions = model_fn(belief.params, x)
+        predictions = predictions.reshape((nsamples, -1))
 
-        return ppd_mean, noise
+        return predictions
 
     return Agent(init_state, update, predict)

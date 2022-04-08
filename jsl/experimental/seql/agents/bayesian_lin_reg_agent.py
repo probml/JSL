@@ -1,10 +1,10 @@
 from jax import config
 
 from jsl.experimental.seql.agents.agent_utils import Memory
+
 config.update('jax_default_matmul_precision', 'float32')
 
 import jax.numpy as jnp
-from jax import vmap
 
 import chex
 from typing import NamedTuple
@@ -12,7 +12,7 @@ from typing import NamedTuple
 # Local imports
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.agents.kf_agent import BeliefState
-from jsl.experimental.seql.utils import posterior_noise
+
 
 class Info(NamedTuple):
     ...
@@ -38,14 +38,10 @@ def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-        ppd_mean = x @ belief.mu
-        v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-        noise = v_posterior_noise(x, belief.Sigma, obs_noise)
+        nsamples = len(x)
+        predictions = x @ belief.mu
+        predictions = predictions.reshape((nsamples, -1))
 
-        nsamples, *_ = x.shape
-        noise = noise.reshape((nsamples, -1))
-        noise = ppd_mean.reshape((nsamples, -1))
-
-        return ppd_mean, noise
+        return predictions
 
     return Agent(init_state, update, predict)

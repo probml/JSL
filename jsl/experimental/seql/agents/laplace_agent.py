@@ -6,30 +6,32 @@ from jax import hessian, vmap, tree_map
 import chex
 from typing import Any, NamedTuple, Optional
 
-
 import warnings
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.utils import posterior_noise
 
-
 JaxOptSolver = Any
 Params = Any
 Info = NamedTuple
+
 
 class BeliefState(NamedTuple):
     mu: Params
     Sigma: Params = None
 
+
 class Info(NamedTuple):
-    ... 
+    ...
+
 
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,
                  params: chex.Array,
                  inputs: chex.Array):
         ...
+
 
 class EnergyFn(typing_extensions.Protocol):
     def __call__(self,
@@ -39,25 +41,24 @@ class EnergyFn(typing_extensions.Protocol):
                  model_fn: ModelFn):
         ...
 
-def laplace_agent(solver: JaxOptSolver,
-               energy_fn: EnergyFn,
-               model_fn: ModelFn,
-               obs_noise: float = 0.01,
-               threshold: int = 1,
-               buffer_size : int = 0):
 
+def laplace_agent(solver: JaxOptSolver,
+                  energy_fn: EnergyFn,
+                  model_fn: ModelFn,
+                  obs_noise: float = 0.01,
+                  threshold: int = 1,
+                  buffer_size: int = 0):
     assert threshold <= buffer_size
-    
+
     memory = Memory(buffer_size)
-    
+
     def init_state(mu: chex.Array,
-                   Sigma: Optional[chex.Array]= None):
+                   Sigma: Optional[chex.Array] = None):
         return BeliefState(mu, Sigma)
 
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -72,10 +73,13 @@ def laplace_agent(solver: JaxOptSolver,
 
         Sigma = hessian(partial_energy_fn)(params)
         return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
-    
+
     def predict(belief: BeliefState,
                 x: chex.Array):
-        ppd_mean = model_fn(belief.mu, x)
-        return ppd_mean, None
+        nsamples = len(x)
+        predictions = model_fn(belief.mu, x)
+        predictions = predictions.reshape((nsamples, -1))
+
+        return predictions
 
     return Agent(init_state, update, predict)

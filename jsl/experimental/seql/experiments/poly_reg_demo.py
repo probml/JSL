@@ -16,6 +16,7 @@ from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
 from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_poly_regression_environment
+from jsl.experimental.seql.experiments.experiment_utils import run_experiment
 from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
 from jsl.experimental.seql.utils import mse, train
 
@@ -235,18 +236,11 @@ def main():
     bfgs = bfgs_agent(partial_objective_fn,
                       obs_noise=obs_noise,
                       buffer_size=buffer_size)
-    
-    batch_bfgs = bfgs_agent(partial_objective_fn,
-                    obs_noise=obs_noise,
-                    buffer_size=buffer_size)
+
 
     lbfgs = lbfgs_agent(partial_objective_fn,
                         obs_noise=obs_noise,
                         history_size=buffer_size)
-
-    batch_lbfgs = lbfgs_agent(partial_objective_fn,
-                    obs_noise=obs_noise,
-                    history_size=buffer_size)
 
     energy_fn = partial(partial_objective_fn, model_fn=model_fn)
     solver = ScipyMinimize(fun=energy_fn, method="BFGS")
@@ -272,19 +266,30 @@ def main():
                     "exact bayes": batch_bayes,
                     "sgd": batch_sgd,
                     "laplace": laplace,
-                    "bfgs": batch_bfgs,
-                    "lbfgs": batch_lbfgs,
+                    "bfgs": bfgs,
+                    "lbfgs": lbfgs,
                     "nuts": batch_nuts,
                     "sgld": batch_sgld,
                     }
 
+    timesteps = list(range(nsteps))
 
-    sweep(agents, env, batch_size,
-          ntrain, nsteps,
-          degree=degree,
-          obs_noise=obs_noise,
-          timesteps=list(range(nsteps)),
-          batch_agents=batch_agents)
+    nrows = len(agents)
+    ncols = len(timesteps) + 1
+    run_experiment(agents,
+                   env,
+                   initialize_params,
+                   batch_size,
+                   ntrain,
+                   nsteps,
+                   nrows,
+                   ncols,
+                   callback_fn=callback_fn,
+                   degree=degree,
+                   obs_noise=obs_noise,
+                   timesteps=timesteps,
+                   batch_agents=batch_agents
+                   )
     
     env = lambda _: make_random_poly_regression_environment(env_key,
                                                                 degree,
@@ -293,11 +298,20 @@ def main():
                                                                 obs_noise=obs_noise,
                                                                 x_test_generator=x_test_generator)
 
-    sweep(agents, env, batch_size,
-          ntrain, ntrain,
-          degree=degree,
-          obs_noise=obs_noise,
-          timesteps=list([1, 2, 5, 9, 19, 39]))
+    timesteps = list([1, 2, 5, 9, 19, 39])
+    ncols = len(timesteps)
+    run_experiment(agents,
+                   env,
+                   initialize_params,
+                   batch_size,
+                   ntrain,
+                   ntrain,
+                   nrows,
+                   ncols,
+                   callback_fn=callback_fn,
+                   degree=degree,
+                   obs_noise=obs_noise,
+                   timesteps=timesteps)
     
 if __name__ == "__main__":
     main()

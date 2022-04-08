@@ -15,6 +15,7 @@ from jsl.experimental.seql.utils import mse
 
 Params = Any
 
+
 class ModelFn(typing_extensions.Protocol):
     def __call__(self,
                  params: chex.Array,
@@ -50,7 +51,7 @@ class Info(NamedTuple):
     '''
     status: int = -1
     iter_num: int = 0
-  
+
 
 def bfgs_agent(objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
@@ -59,8 +60,6 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
                obs_noise: float = 0.01,
                buffer_size: int = jnp.inf,
                threshold: int = 1):
-    
-
     partial_objective_fn = partial(objective_fn,
                                    model_fn=model_fn)
 
@@ -69,16 +68,15 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
                          tol=tol,
                          options=options)
     assert threshold <= buffer_size
-    
+
     memory = Memory(buffer_size)
-    
+
     def init_state(x: chex.Array):
         return BeliefState(x)
 
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -87,17 +85,16 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
             return belief, Info()
 
         params, info = bfgs.run(belief.params,
-                            inputs=x_,
-                            outputs=y_)
+                                inputs=x_,
+                                outputs=y_)
         return BeliefState(params), info
-    
+
     def predict(belief: BeliefState,
                 x: chex.Array):
-        nsamples, *_ = x.shape
+        nsamples = len(x)
+        predictions = model_fn(belief.params, x)
+        predictions = predictions.reshape((nsamples, -1))
 
-        ppd_mean = model_fn(belief.params, x)
-        ppd_mean = ppd_mean.reshape((nsamples, -1))
-        noise = obs_noise * jnp.ones((nsamples, 1))
-        return ppd_mean, noise
+        return predictions
 
     return Agent(init_state, update, predict)

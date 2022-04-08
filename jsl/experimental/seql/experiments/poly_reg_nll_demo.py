@@ -7,9 +7,6 @@ from jaxopt import ScipyMinimize
 from functools import partial
 from matplotlib import pyplot as plt
 
-from jsl.experimental.seql.experiments.experiment_utils import run_experiment
-from jsl.experimental.seql.experiments.plotting import colors
-
 from jsl.experimental.seql.agents.bayesian_lin_reg_agent import bayesian_reg
 from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
 from jsl.experimental.seql.agents.blackjax_nuts_agent import blackjax_nuts_agent
@@ -20,7 +17,9 @@ from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, \
     make_random_poly_regression_environment
-from jsl.experimental.seql.utils import mse
+from jsl.experimental.seql.experiments.experiment_utils import run_experiment
+from jsl.experimental.seql.experiments.plotting import colors
+from jsl.experimental.seql.utils import mse, train
 
 plt.style.use("seaborn-poster")
 
@@ -49,18 +48,19 @@ losses = []
 
 
 def callback_fn(agent, env, agent_name, **kwargs):
-    global loss
-
+    global losses
+    if kwargs["t"] == 0:
+        losses = []
     belief = kwargs["belief_state"]
-    nfeatures = kwargs["degree"] + 1
-    out = kwargs["nout"]
+    nfeatures = kwargs["nfeatures"]
+    out = 1
 
     inputs = env.X_test.reshape((-1, nfeatures))
     outputs = env.y_test.reshape((-1, out))
     predictions, _ = agent.predict(belief, inputs)
     loss = jnp.mean(jnp.power(predictions - outputs, 2))
     losses.append(loss)
-    if kwargs["t"] == kwargs["nsteps"] - 1:
+    if kwargs["t"] == 9:
         ax = kwargs["ax"]
         ax.plot(losses, color=colors[agent_name])
         ax.set_title(agent_name.upper())
@@ -70,13 +70,14 @@ def callback_fn(agent, env, agent_name, **kwargs):
 
 def initialize_params(agent_name, **kwargs):
     nfeatures = kwargs["degree"] + 1
-    mu0 = jnp.zeros((nfeatures, kwargs["nout"]))
+    mu0 = jnp.zeros((nfeatures, 1))
     if agent_name in ["exact bayes", "kf"]:
-        mu0 = jnp.zeros((nfeatures, kwargs["nout"]))
+        mu0 = jnp.zeros((nfeatures, 1))
         Sigma0 = jnp.eye(nfeatures)
         initial_params = (mu0, Sigma0)
     else:
         initial_params = (mu0,)
+
     return initial_params
 
 
@@ -91,7 +92,6 @@ def main():
     degree = 3
     ntrain = 50
     ntest = 50
-    nout = 2
     batch_size = 5
     obs_noise = 1.
 
@@ -100,7 +100,6 @@ def main():
                                                                      degree,
                                                                      ntrain,
                                                                      ntest,
-                                                                     nout=nout,
                                                                      obs_noise=obs_noise,
                                                                      train_batch_size=batch_size,
                                                                      test_batch_size=batch_size,
@@ -113,6 +112,7 @@ def main():
     kf = kalman_filter_reg(obs_noise)
 
     bayes = bayesian_reg(buffer_size, obs_noise)
+    batch_bayes = bayesian_reg(ntrain, obs_noise)
 
     optimizer = optax.adam(1e-1)
 
@@ -124,6 +124,13 @@ def main():
                     nepochs=nepochs,
                     buffer_size=buffer_size)
 
+    batch_sgd = sgd_agent(mse,
+                          model_fn,
+                          optimizer=optimizer,
+                          obs_noise=obs_noise,
+                          buffer_size=buffer_size,
+                          nepochs=nepochs * nsteps)
+
     nsamples, nwarmup = 200, 100
     nuts = blackjax_nuts_agent(nuts_key,
                                negative_mean_square_error,
@@ -132,6 +139,14 @@ def main():
                                nwarmup=nwarmup,
                                obs_noise=obs_noise,
                                buffer_size=buffer_size)
+
+    batch_nuts = blackjax_nuts_agent(nuts_key,
+                                     negative_mean_square_error,
+                                     model_fn,
+                                     nsamples=nsamples * nsteps,
+                                     nwarmup=nwarmup,
+                                     obs_noise=obs_noise,
+                                     buffer_size=buffer_size)
 
     partial_logprob_fn = partial(negative_mean_square_error,
                                  model_fn=model_fn)
@@ -146,6 +161,17 @@ def main():
                       obs_noise=obs_noise,
                       buffer_size=buffer_size)
 
+    dt = 1e-5
+    batch_sgld = sgld_agent(sgld_key,
+                            partial_logprob_fn,
+                            logprior_fn,
+                            model_fn,
+                            dt=dt,
+                            batch_size=batch_size,
+                            nsamples=nsamples * nsteps,
+                            obs_noise=obs_noise,
+                            buffer_size=buffer_size)
+
     tau = 1.
     strength = obs_noise / tau
     partial_objective_fn = partial(penalized_objective_fn, strength=strength)
@@ -154,9 +180,17 @@ def main():
                       obs_noise=obs_noise,
                       buffer_size=buffer_size)
 
+    batch_bfgs = bfgs_agent(partial_objective_fn,
+                            obs_noise=obs_noise,
+                            buffer_size=buffer_size)
+
     lbfgs = lbfgs_agent(partial_objective_fn,
                         obs_noise=obs_noise,
                         history_size=buffer_size)
+
+    batch_lbfgs = lbfgs_agent(partial_objective_fn,
+                              obs_noise=obs_noise,
+                              history_size=buffer_size)
 
     energy_fn = partial(partial_objective_fn, model_fn=model_fn)
     solver = ScipyMinimize(fun=energy_fn, method="BFGS")
@@ -167,15 +201,30 @@ def main():
                             buffer_size=buffer_size)
 
     agents = {
-        "sgld": sgld,
+        "kf": kf,
+        "exact bayes": bayes,
         "sgd": sgd,
         "laplace": laplace,
         "bfgs": bfgs,
         "lbfgs": lbfgs,
         "nuts": nuts,
+        "sgld": sgld,
+    }
+
+    batch_agents = {
+        "kf": kf,
+        "exact bayes": batch_bayes,
+        "sgd": batch_sgd,
+        "laplace": laplace,
+        "bfgs": batch_bfgs,
+        "lbfgs": batch_lbfgs,
+        "nuts": batch_nuts,
+        "sgld": batch_sgld,
     }
     nrows = len(agents)
     ncols = 1
+    timesteps = list(range(nsteps))
+
     run_experiment(agents,
                    env,
                    initialize_params,
@@ -187,8 +236,10 @@ def main():
                    callback_fn=callback_fn,
                    degree=degree,
                    obs_noise=obs_noise,
-                   timesteps=list(range(nsteps)),
-                   nout=nout)
+                   timesteps=timesteps,
+                   key=key,
+                   nfeatures=degree + 1,
+                   batch_agents=batch_agents)
 
 
 if __name__ == "__main__":

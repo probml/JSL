@@ -1,13 +1,15 @@
-from functools import partial
-import warnings
-import optax
-
 import jax.numpy as jnp
 from jax import jit, value_and_grad
 
+import optax
+
 import chex
+
 import typing_extensions
 from typing import Any, NamedTuple
+
+import warnings
+from functools import partial
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
@@ -19,8 +21,8 @@ Optimizer = NamedTuple
 
 # https://github.com/deepmind/optax/blob/252d152660300fc7fe22d214c5adbe75ffab0c4a/optax/_src/transform.py#L35
 class TraceState(NamedTuple):
-  """Holds an aggregation of past updates."""
-  trace: chex.ArrayTree
+    """Holds an aggregation of past updates."""
+    trace: chex.ArrayTree
 
 
 class ModelFn(typing_extensions.Protocol):
@@ -29,6 +31,7 @@ class ModelFn(typing_extensions.Protocol):
                  x: chex.Array):
         ...
 
+
 class LossFn(typing_extensions.Protocol):
     def __call__(self,
                  params: Params,
@@ -36,6 +39,7 @@ class LossFn(typing_extensions.Protocol):
                  y: chex.Array,
                  model_fn: ModelFn) -> float:
         ...
+
 
 class BeliefState(NamedTuple):
     params: Params
@@ -53,7 +57,6 @@ def sgd_agent(loss_fn: LossFn,
               buffer_size: int = jnp.inf,
               nepochs: int = 20,
               threshold: int = 1):
-
     assert threshold <= buffer_size
 
     memory = Memory(buffer_size)
@@ -67,7 +70,7 @@ def sgd_agent(loss_fn: LossFn,
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-            
+
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -78,27 +81,22 @@ def sgd_agent(loss_fn: LossFn,
 
         params = belief.params
         opt_state = belief.opt_state
-        
+
         for _ in range(nepochs):
             loss, grads = value_and_grad_fn(params, x_, y_)
             updates, opt_state = optimizer.update(grads, opt_state)
             params = optax.apply_updates(params, updates)
-        
+
         return BeliefState(params, opt_state), Info(loss)
 
-
     def predict(belief: BeliefState,
-            x: chex.Array): 
-        
-        params = belief.params
-        print(x.shape)
-        from jax import tree_map
-        print(tree_map(lambda x: x.shape, belief.params))
-        ppd_mean = model_fn(params, x)
+                x: chex.Array):
 
-        nsamples, *_ = ppd_mean.shape
-        ppd_cov = obs_noise * jnp.ones((nsamples, 1))
-        ppd_mean = ppd_mean.reshape((nsamples, -1))
-        return ppd_mean, ppd_cov
+        params = belief.params
+
+        nsamples = len(x)
+        predictions = model_fn(params, x).reshape((nsamples, -1))
+
+        return predictions
 
     return Agent(init_state, update, predict)
