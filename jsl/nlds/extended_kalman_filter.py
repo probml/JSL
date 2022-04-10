@@ -1,7 +1,7 @@
 import chex
 from jax import jacrev, lax
 import jax.numpy as jnp
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable
 from functools import partial
 from .base import NLDS
 
@@ -11,7 +11,7 @@ def filter_step(state: Tuple[chex.Array, chex.Array, int],
                 eps: float, return_params: Dict
                 ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
     """
-    Run the Extended Kalman filter algorithm for a single step
+    Run a single step of the extended Kalman filter (EKF) algorithm.
 
     Parameters
     ---------
