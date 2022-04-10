@@ -94,6 +94,11 @@ def hmm_sample_jax(params, seq_len, rng_key):
         Observation sequence
     '''
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
+
+    trans_mat = jnp.array(trans_mat)
+    obs_mat = jnp.array(obs_mat)
+    init_dist = jnp.array(init_dist)
+
     n_states, n_obs = obs_mat.shape
 
     initial_state = jax.random.categorical(rng_key, logits=logit(init_dist), shape=(1,))
@@ -150,6 +155,11 @@ def hmm_forwards_jax(params, obs_seq, length=None):
         length = seq_len
 
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
+
+    trans_mat = jnp.array(trans_mat)
+    obs_mat = jnp.array(obs_mat)
+    init_dist = jnp.array(init_dist)
+
     n_states, n_obs = obs_mat.shape
 
     def scan_fn(carry, t):
@@ -232,6 +242,11 @@ def hmm_backwards_jax(params, obs_seq, length=None):
         length = seq_len
 
     trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
+
+    trans_mat = jnp.array(trans_mat)
+    obs_mat = jnp.array(obs_mat)
+    init_dist = jnp.array(init_dist)
+
     n_states, n_obs = obs_mat.shape
 
     beta_t = jnp.ones((n_states,))

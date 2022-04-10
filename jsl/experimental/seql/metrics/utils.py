@@ -23,10 +23,10 @@ def average_sampled_log_likelihood(x: chex.Array) -> float:
     )
 
 
-def evaluate_quality(env, enn_sampler, metric_fns, num_enn_samples, num_test_seeds, key):
+def evaluate_quality(env, enn_sampler, metric_fns, num_samples, num_test_seeds, key):
     def evaluate(key):
         (X, y), true_ll = env.test_data(key)
-        keys = random.split(key, num_enn_samples)
+        keys = random.split(key, num_samples)
         v_sampler = vmap(enn_sampler, in_axes=(0, None))
         enn_samples = v_sampler(keys, X)
 
