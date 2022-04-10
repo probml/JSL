@@ -1,9 +1,53 @@
-import jax.numpy as jnp
-from jax import jacrev, lax
-
 import chex
+from jax import jacrev, lax
+import jax.numpy as jnp
 from typing import List
+from functools import partial
 from .base import NLDS
+
+def filter_step(state, xs, fx, fz, Dfx, Dfz, R, Q, eps, return_params):
+    """
+    Run the Extended Kalman filter algorithm for a single step
+
+    Parameters
+    ---------
+    state: tuple
+        Mean, covariance at time t-1
+    xs: tuple
+        Target value and observations at time t
+    eps: float
+        Small number to prevent singular matrix
+    return_params: list
+        Fix elements to carry
+
+    Returns
+    -------
+    * tuple
+        1. Mean, covariance, and time at time t
+        2. History of filtered mean terms (if requested)
+    """
+    mu_t, Vt, t = state
+    obs, inputs = xs
+
+    state_size, *_ = mu_t.shape
+    I = jnp.eye(state_size)
+    Gt = Dfz(mu_t)
+    mu_t_cond = fz(mu_t)
+    Vt_cond = Gt @ Vt @ Gt.T + Q(mu_t, t)
+    Ht = Dfx(mu_t_cond, *inputs)
+
+    Rt = R(mu_t_cond, *inputs)
+    num_inputs, *_ = Rt.shape
+
+    obs_hat = fx(mu_t_cond, *inputs)
+    Mt = Ht @ Vt_cond @ Ht.T + Rt + eps * jnp.eye(num_inputs)
+    Kt = Vt_cond @ Ht.T @ jnp.linalg.inv(Mt)
+    mu_t = mu_t_cond + Kt @ (obs - obs_hat)
+    Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
+
+    params = {"mean": mu_t, "cov": Vt}
+    params = {key: val for key, val in params.items() if key in return_params}
+    return (mu_t, Vt, t + 1), params
 
 
 def filter(params: NLDS,
@@ -55,50 +99,9 @@ def filter(params: NLDS,
 
     return_params = [] if return_params is None else return_params
 
-    def filter_step(state, xs):
-        """
-        Run the Extended Kalman filter algorithm for a single step
-
-        Parameters
-        ---------
-        state: tuple
-            Mean, covariance at time t-1
-        xs: tuple
-            Target value and observations at time t
-        eps: float
-            Small number to prevent singular matrix
-        return_params: list
-            Fix elements to carry
-
-        Returns
-        -------
-        * tuple
-            1. Mean, covariance, and time at time t
-            2. History of filtered mean terms (if requested)
-        """
-        mu_t, Vt, t = state
-        obs, inputs = xs
-
-        state_size, *_ = mu_t.shape
-        I = jnp.eye(state_size)
-        Gt = Dfz(mu_t)
-        mu_t_cond = fz(mu_t)
-        Vt_cond = Gt @ Vt @ Gt.T + Q(mu_t, t)
-        Ht = Dfx(mu_t_cond, *inputs)
-
-        Rt = R(mu_t_cond, *inputs)
-        num_inputs, *_ = Rt.shape
-
-        obs_hat = fx(mu_t_cond, *inputs)
-        Mt = Ht @ Vt_cond @ Ht.T + Rt + eps * jnp.eye(num_inputs)
-        Kt = Vt_cond @ Ht.T @ jnp.linalg.inv(Mt)
-        mu_t = mu_t_cond + Kt @ (obs - obs_hat)
-        Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
-
-        elements = {"mean": mu_t, "cov": Vt}
-        return (mu_t, Vt, t + 1), {key: val for key, val in elements.items() if key in return_params}
-
-    (mu_t, Vt, _), hist_elements = lax.scan(filter_step, state, xs)
+    filter_step_pass = partial(filter_step, fx=fx, fz=fz, Dfx=Dfx, Dfz=Dfz,
+                          R=R, Q=Q, eps=eps, return_params=return_params)
+    (mu_t, Vt, _), hist_elements = lax.scan(filter_step_pass, state, xs)
 
     if return_history:
         return (mu_t, Vt), hist_elements
