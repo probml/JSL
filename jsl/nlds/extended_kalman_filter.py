@@ -1,11 +1,15 @@
 import chex
 from jax import jacrev, lax
 import jax.numpy as jnp
-from typing import List
+from typing import Dict, List, Tuple
 from functools import partial
 from .base import NLDS
 
-def filter_step(state, xs, fx, fz, Dfx, Dfz, R, Q, eps, return_params):
+def filter_step(state: Tuple[chex.Array, chex.Array, int],
+                xs: Tuple[chex.Array, chex.Array],
+                params: NLDS, Dfx: Callable, Dfz: Callable,
+                eps: float, return_params: Dict
+                ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
     """
     Run the Extended Kalman filter algorithm for a single step
 
@@ -15,6 +19,12 @@ def filter_step(state, xs, fx, fz, Dfx, Dfz, R, Q, eps, return_params):
         Mean, covariance at time t-1
     xs: tuple
         Target value and observations at time t
+    params: NLDS
+        Nonlinear dynamical system parameters
+    Dfx: Callable
+        Jacobian of the observation function
+    Dfz: Callable
+        Jacobian of the state transition function
     eps: float
         Small number to prevent singular matrix
     return_params: list
@@ -32,22 +42,22 @@ def filter_step(state, xs, fx, fz, Dfx, Dfz, R, Q, eps, return_params):
     state_size, *_ = mu_t.shape
     I = jnp.eye(state_size)
     Gt = Dfz(mu_t)
-    mu_t_cond = fz(mu_t)
-    Vt_cond = Gt @ Vt @ Gt.T + Q(mu_t, t)
+    mu_t_cond = params.fz(mu_t)
+    Vt_cond = Gt @ Vt @ Gt.T + params.Qz(mu_t, t)
     Ht = Dfx(mu_t_cond, *inputs)
 
-    Rt = R(mu_t_cond, *inputs)
+    Rt = params.Rx(mu_t_cond, *inputs)
     num_inputs, *_ = Rt.shape
 
-    obs_hat = fx(mu_t_cond, *inputs)
+    obs_hat = params.fx(mu_t_cond, *inputs)
     Mt = Ht @ Vt_cond @ Ht.T + Rt + eps * jnp.eye(num_inputs)
     Kt = Vt_cond @ Ht.T @ jnp.linalg.inv(Mt)
     mu_t = mu_t_cond + Kt @ (obs - obs_hat)
     Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
 
-    params = {"mean": mu_t, "cov": Vt}
-    params = {key: val for key, val in params.items() if key in return_params}
-    return (mu_t, Vt, t + 1), params
+    carry = {"mean": mu_t, "cov": Vt}
+    carry = {key: val for key, val in carry.items() if key in return_params}
+    return (mu_t, Vt, t + 1), carry
 
 
 def filter(params: NLDS,
@@ -99,8 +109,8 @@ def filter(params: NLDS,
 
     return_params = [] if return_params is None else return_params
 
-    filter_step_pass = partial(filter_step, fx=fx, fz=fz, Dfx=Dfx, Dfz=Dfz,
-                          R=R, Q=Q, eps=eps, return_params=return_params)
+    filter_step_pass = partial(filter_step, params=params, Dfx=Dfx, Dfz=Dfz,
+                               eps=eps, return_params=return_params)
     (mu_t, Vt, _), hist_elements = lax.scan(filter_step_pass, state, xs)
 
     if return_history:
