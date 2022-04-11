@@ -7,8 +7,11 @@ from .base import NLDS
 
 def filter_step(state: Tuple[chex.Array, chex.Array, int],
                 xs: Tuple[chex.Array, chex.Array],
-                params: NLDS, Dfx: Callable, Dfz: Callable,
-                eps: float, return_params: Dict
+                params: NLDS,
+                Dfx: Callable,
+                Dfz: Callable,
+                eps: float,
+                return_params: Dict
                 ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
     """
     Run a single step of the extended Kalman filter (EKF) algorithm.
