@@ -23,17 +23,16 @@ def average_sampled_log_likelihood(x: chex.Array) -> float:
     )
 
 
-def evaluate_quality(env, enn_sampler, metric_fns, num_samples, num_test_seeds, key):
+def evaluate_quality(agent, env, belief, metric_fns, nsamples, ntest_seeds, key):
     def evaluate(key):
         (X, y), true_ll = env.test_data(key)
-        keys = random.split(key, num_samples)
-        v_sampler = vmap(enn_sampler, in_axes=(0, None))
-        enn_samples = v_sampler(keys, X)
+        samples = agent.sample_predict(key, belief, X, nsamples)
 
         metrics = {}
-        for metric_name, metric_fn in metric_fns.items():
-            metrics[metric_name] = metric_fn(enn_samples, (X, y), true_ll)
+        for metric_fn in metric_fns:
+            metric_name = metric_fn.name
+            metrics[metric_name] = metric_fn(samples, (X, y), true_ll)
         return metrics
 
-    keys = random.split(key, num_test_seeds)
+    keys = random.split(key, ntest_seeds)
     return jnp.mean(vmap(evaluate)(keys), axis=0)

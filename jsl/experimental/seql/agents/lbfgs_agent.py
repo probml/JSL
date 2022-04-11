@@ -11,7 +11,6 @@ from jsl.experimental.seql.agents.agent_utils import Memory
 
 from jsl.experimental.seql.agents.base import Agent
 
-
 Params = Any
 AutoOrBoolean = Union[str, bool]
 
@@ -127,11 +126,16 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
 
     def predict(belief: BeliefState,
                 x: chex.Array):
-
         nsamples = len(x)
         predictions = model_fn(belief.params, x)
         predictions = predictions.reshape((nsamples, -1))
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+
+    return Agent(init_state, update, predict, sample_predictive)

@@ -14,7 +14,6 @@ from functools import partial
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
 
-
 Params = Any
 Optimizer = NamedTuple
 
@@ -99,4 +98,10 @@ def sgd_agent(loss_fn: LossFn,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+
+    return Agent(init_state, update, predict, sample_predictive)

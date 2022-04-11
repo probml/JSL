@@ -62,7 +62,6 @@ def scikit_log_reg_agent(penalty='l2',
     def update(belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
 
@@ -79,4 +78,10 @@ def scikit_log_reg_agent(penalty='l2',
                 x: chex.Array):
         return belief.clf.predict_log_proba(x)
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+
+    return Agent(init_state, update, predict, sample_predictive)

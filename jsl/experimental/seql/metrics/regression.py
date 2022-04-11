@@ -15,6 +15,7 @@ from jsl.experimental.seql.utils import gaussian_log_likelihood
 class GaussianSampleKL(MetricFn):
     """Evaluates KL according to optimized Gaussian residual model."""
     enn_sigma: float
+    name: str = "kl"
 
     def __call__(self,
                  predictions: chex.Array,

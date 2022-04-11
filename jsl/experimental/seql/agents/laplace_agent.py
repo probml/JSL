@@ -1,10 +1,12 @@
-from functools import partial
-import typing_extensions
 import jax.numpy as jnp
-from jax import hessian, vmap, tree_map
+from jax import hessian, vmap, tree_map, random
+
+import distrax
 
 import chex
+import typing_extensions
 from typing import Any, NamedTuple, Optional
+from functools import partial
 
 import warnings
 
@@ -82,4 +84,18 @@ def laplace_agent(solver: JaxOptSolver,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        keys = random.split(key, nsamples)
+        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
+                                                       belief.Sigma)
+
+        def predict(key: chex.PRNGKey):
+            params = mvn.sample(seed=key, shape=belief.mu.shape)
+            return x @ params
+
+        return vmap(predict)(keys)
+
+    return Agent(init_state, update, predict, sample_predictive)

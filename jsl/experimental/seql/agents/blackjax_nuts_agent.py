@@ -10,7 +10,7 @@ import blackjax.stan_warmup as stan_warmup
 import jax.numpy as jnp
 
 import typing_extensions
-from typing import Any, NamedTuple, Union
+from typing import Any, NamedTuple, Union, Callable
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
@@ -52,6 +52,7 @@ class NutsState(NamedTuple):
     position: chex.ArrayTree
     potential_energy: chex.ArrayTree = None
     potential_energy_grad: chex.ArrayTree = None
+    potential_fn: Callable = None
 
 
 def inference_loop(rng_key, kernel, initial_state, num_samples):
@@ -126,14 +127,14 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
         belief_state = BeliefState(tree_map(lambda x: jnp.mean(x, axis=0), states),
                                    step_size,
                                    inverse_mass_matrix,
-                                   tree_map(lambda x: x[-nlast:], states)
-                                   )
+                                   tree_map(lambda x: x[-nlast:], states),
+                                   partial_potential_fn)
         return belief_state, Info()
 
     def predict(belief: BeliefState,
                 x: chex.Array):
 
-        def get_mean_predictions(samples):
+        def get_mean_predictions(samples, x, model_fn):
             flat_tree, pytree_def = tree_flatten(samples)
 
             def _predict(*args):
@@ -151,4 +152,30 @@ def blackjax_nuts_agent(key: Union[chex.PRNGKey, int],
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                          belief: BeliefState,
+                          x: chex.Array,
+                          nsamples: int):
+
+        if belief.potential_fn is None:
+            return jnp.repeat(model_fn(belief.state.position, x), nsamples, axis=0)
+
+        state = nuts.new_state(belief.state.position,
+                               belief.potential_fn)
+
+        # Inference
+        nuts_kernel = jit(nuts.kernel(belief.potential_fn,
+                                      belief.step_size,
+                                      belief.inverse_mass_matrix))
+
+        def sample_and_predict(key):
+            final, states = inference_loop(key,
+                                           nuts_kernel,
+                                           state,
+                                           1)
+            return model_fn(final.position, x)
+
+        keys = random.split(key, nsamples)
+        return vmap(sample_and_predict)(keys)
+
+    return Agent(init_state, update, predict, sample_predictive)

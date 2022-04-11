@@ -1,12 +1,12 @@
 import jax.numpy as jnp
-from jax import tree_map, vmap
+from jax import tree_map, vmap, random
 
 import haiku as hk
 
 from sgmcmcjax.samplers import build_sgld_sampler
 
 import chex
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Callable
 
 import warnings
 import typing_extensions
@@ -14,7 +14,6 @@ from functools import partial
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
-
 
 Params = Any
 Samples = Any
@@ -49,6 +48,7 @@ class ModelFn(typing_extensions.Protocol):
 class BeliefState(NamedTuple):
     params: Params
     samples: Samples = None
+    sampler: Callable = None
 
 
 class Info(NamedTuple):
@@ -105,7 +105,7 @@ def sgld_agent(key: chex.PRNGKey,
         samples = tree_map(lambda x: x[-buffer_size:],
                            samples)
 
-        return BeliefState(final, samples), Info
+        return BeliefState(final, samples, sampler), Info
 
     def predict(belief: BeliefState,
                 x: chex.Array):
@@ -118,4 +118,21 @@ def sgld_agent(key: chex.PRNGKey,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                          belief: BeliefState,
+                          x: chex.Array,
+                          nsamples: int):
+
+        if belief.sampler is None:
+            return jnp.repeat(model_fn(belief.params, x), nsamples, axis=0)
+
+        def sample_and_predict(key):
+            params = belief.sampler(key,
+                                    1,
+                                    belief.params)
+            return model_fn(params, x)
+
+        keys = random.split(key, nsamples)
+        return vmap(sample_and_predict)(keys)
+
+    return Agent(init_state, update, predict, sample_predictive)

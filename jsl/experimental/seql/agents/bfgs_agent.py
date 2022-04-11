@@ -97,4 +97,10 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+
+    return Agent(init_state, update, predict, sample_predictive)

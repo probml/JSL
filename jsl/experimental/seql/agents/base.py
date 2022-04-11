@@ -6,6 +6,7 @@ from typing import NamedTuple, Tuple, Callable
 BeliefState = NamedTuple
 Info = NamedTuple
 AgentInitFn = Callable
+SampleFn = Callable
 
 
 class AgentUpdateFn(typing_extensions.Protocol):
@@ -31,6 +32,17 @@ class AgentPredictFn(typing_extensions.Protocol):
         ...
 
 
+class SamplePredictiveFn(typing_extensions.Protocol):
+
+    def __call__(self,
+                 key: chex.PRNGKey,
+                 belief: BeliefState,
+                 x: chex.Array,
+                 nsamples: int
+                 ) -> chex.Array:
+        ...
+
+
 class Agent(NamedTuple):
     '''
     Agent interface.
@@ -38,3 +50,4 @@ class Agent(NamedTuple):
     init_state: AgentInitFn
     update: AgentUpdateFn
     predict: AgentPredictFn
+    sample_predictive: SamplePredictiveFn

@@ -18,6 +18,7 @@ class CalibrationErrorCalculator(MetricFn):
     """Computes expected calibration error (ece) aggregated over enn samples."""
     # https://github.com/deepmind/neural_testbed/blob/7defebf0a232a921d720b870c3ab3a56d38e7ceb/neural_testbed/likelihood/classification.py#L88
     num_bins: int
+    name: str = "ece"
 
     def __call__(self,
                  predictions: chex.Array,
@@ -53,6 +54,7 @@ class CalibrationErrorCalculator(MetricFn):
 @dataclasses.dataclass
 class AccuracyCalculator(MetricFn):
     """Computes classification accuracy (acc) aggregated over enn samples."""
+    name: str = "accuracy"
 
     def __call__(self,
                  predictions: chex.Array,
@@ -75,6 +77,8 @@ class AccuracyCalculator(MetricFn):
 
 @dataclasses.dataclass
 class JointLogLikelihoodCalculator(MetricFn):
+    name: str = "ll"
+
     def __call__(self,
                  predictions: chex.Array,
                  test_data: Tuple[Tuple[chex.Array, chex.Array], float]) -> float:
@@ -106,6 +110,7 @@ class KLEstimationCalculator(MetricFn):
     This approach samples an (x, y) output from the enn and data sampler and uses
     this to estimate the KL divergence.
     """
+    name: str = "kl"
 
     def __call__(self,
                  predictions: chex.Array,

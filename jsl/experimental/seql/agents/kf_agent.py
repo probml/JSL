@@ -1,9 +1,11 @@
 # Kalman filter agent
-from jax import config
+from jax import config, random, vmap
 
 config.update('jax_default_matmul_precision', 'float32')
 
 import jax.numpy as jnp
+
+import distrax
 
 import chex
 from typing import NamedTuple
@@ -54,4 +56,18 @@ def kalman_filter_reg(obs_noise: float = 1.,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        keys = random.split(key, nsamples)
+        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
+                                                       belief.Sigma)
+
+        def predict(key: chex.PRNGKey):
+            params = mvn.sample(seed=key, shape=belief.mu.shape)
+            return x @ params
+
+        return vmap(predict)(keys)
+
+    return Agent(init_state, update, predict, sample_predictive)

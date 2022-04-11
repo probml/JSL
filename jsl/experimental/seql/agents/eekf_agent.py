@@ -1,6 +1,9 @@
 # EEKF agent
+from jax import random, vmap
 
 import chex
+import distrax
+
 from typing import List
 
 from jsl.experimental.seql.agents.base import Agent
@@ -12,7 +15,6 @@ from jsl.experimental.seql.agents.kf_agent import BeliefState, Info
 def eekf(nlds: NLDS,
          return_params: List[str] = ["mean", "cov"],
          return_history: bool = False):
-
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
@@ -37,4 +39,18 @@ def eekf(nlds: NLDS,
 
         return predictions
 
-    return Agent(init_state, update, predict)
+    def sample_predictive(key: chex.PRNGKey,
+                             belief: BeliefState,
+                             x: chex.Array,
+                             nsamples: int):
+        keys = random.split(key, nsamples)
+        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
+                                                       belief.Sigma)
+
+        def predict(key: chex.PRNGKey):
+            params = mvn.sample(seed=key, shape=belief.mu.shape)
+            return x @ params
+
+        return vmap(predict)(keys)
+
+    return Agent(init_state, update, predict, sample_predictive)
