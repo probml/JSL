@@ -39,20 +39,27 @@ def smooth(params: NLDS,
            Vinit: chex.Array = None,
            return_params: List = None,
            eps: float = 0.001,
+           return_filter_history: bool = False,
            ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
 
     kf_params = ["mean", "cov"]
     Dfz = jax.jacrev(params.fz)
-    _, ekf_hist = ekf.filter(params, init_state, observations, covariates, Vinit,
+    _, hist_filter = ekf.filter(params, init_state, observations, covariates, Vinit,
                             return_params=kf_params, eps=eps, return_history=True)
-    kf_hist_mean, kf_hist_cov = ekf_hist["mean"], ekf_hist["cov"]
+    kf_hist_mean, kf_hist_cov = hist_filter["mean"], hist_filter["cov"]
     kf_last_mean, kf_hist_mean = kf_hist_mean[-1], kf_hist_mean[:-1]
     kf_last_cov, kf_hist_cov = kf_hist_cov[-1], kf_hist_cov[:-1]
 
     smooth_step_partial =  partial(smooth_step, params=params, Dfz=Dfz,
                                    eps=eps, return_params=return_params)
+
     init_state = (kf_last_mean, kf_last_cov, len(kf_hist_mean) - 1)
     xs = (kf_hist_mean, kf_hist_cov)
     _, hist_smooth = jax.lax.scan(smooth_step_partial, init_state, xs, reverse=True)
 
-    return hist_smooth
+    hist = {
+        "smooth": hist_smooth,
+        "filter": hist_filter if return_filter_history else None
+    }
+
+    return hist
