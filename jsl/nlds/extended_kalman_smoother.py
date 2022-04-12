@@ -39,17 +39,17 @@ def smooth(params: NLDS,
            Vinit: chex.Array = None,
            return_params: List = None,
            eps: float = 0.001,
-           return_history: bool = True
            ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
 
     kf_params = ["mean", "cov"]
+    Dfz = jax.jacrev(params.fz)
     _, ekf_hist = ekf.filter(params, init_state, observations, covariates, Vinit,
                             return_params=kf_params, eps=eps, return_history=True)
     kf_hist_mean, kf_hist_cov = ekf_hist["mean"], ekf_hist["cov"]
     kf_last_mean, kf_hist_mean = kf_hist_mean[-1], kf_hist_mean[:-1]
     kf_last_cov, kf_hist_cov = kf_hist_cov[-1], kf_hist_cov[:-1]
 
-    smooth_step_partial =  partial(smooth_step, params=params, Dfz=params.fz,
+    smooth_step_partial =  partial(smooth_step, params=params, Dfz=Dfz,
                                    eps=eps, return_params=return_params)
     init_state = (kf_last_mean, kf_last_cov, len(kf_hist_mean) - 1)
     xs = (kf_hist_mean, kf_hist_cov)
