@@ -84,4 +84,5 @@ dependencies:
     - termcolor==1.1.0
     - typing-extensions==4.0.1
     - urllib3==1.26.7
+    - celluloid==0.2.0
 prefix: /home/gerardoduran/miniconda3/envs/jsl

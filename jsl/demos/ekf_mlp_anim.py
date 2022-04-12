@@ -13,6 +13,7 @@ from jax.random import PRNGKey, split, normal, multivariate_normal
 from jsl.nlds.base import NLDS
 from jsl.nlds.extended_kalman_filter import filter
 
+from celluloid import Camera
 
 def main(fx, fz, filepath):
     # *** MLP configuration ***
@@ -49,24 +50,26 @@ def main(fx, fz, filepath):
     xtest = jnp.linspace(x.min(), x.max(), 200)
     nframes = n_obs
     fig, ax = plt.subplots()
+    camera = Camera(fig)  # initialize camera object
 
     def func(i):
-        plt.cla()
         W, SW = ekf_mu_hist[i], ekf_Sigma_hist[i]
         W_samples = multivariate_normal(key, W, SW, (100,))
         sample_yhat = fwd_mlp_obs_weights(W_samples, xtest[:, None])
         for sample in sample_yhat:
             ax.plot(xtest, sample, c="tab:gray", alpha=0.07)
-        ax.plot(xtest, sample_yhat.mean(axis=0))
+        ax.plot(xtest, sample_yhat.mean(axis=0), color='blue')
         ax.scatter(x[:i], y[:i], s=14, c="none", edgecolor="black", label="observations")
         ax.scatter(x[i], y[i], s=30, c="tab:red")
-        ax.set_title(f"EKF+MLP ({i + 1:03}/{n_obs})")
+        ax.text(0.4, 1.01, f"EKF+MLP ({i}/{n_obs})", transform=ax.transAxes)
         ax.set_xlim(x.min(), x.max())
         ax.set_ylim(y.min(), y.max())
 
-        return ax
+        camera.snap()  # takes snapshot of fig
 
-    ani = animation.FuncAnimation(fig, func, frames=n_obs)
+    for i in range(n_obs):
+        func(i)
+    ani = camera.animate()  # animates the snapshots
     ani.save(filepath, dpi=200, bitrate=-1, fps=10)
 
 
