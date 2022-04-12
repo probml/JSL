@@ -25,10 +25,11 @@ def plot_inference(sample_obs, mean_hist, Sigma_hist, label):
     ax.plot(*mean_hist.T, c="tab:orange", label=label)
     ax.scatter(*mean_hist[0], c="black", zorder=3)
     plt.legend()
-    collection = [(mut, Vt) for mut, Vt in zip(mean_hist[::4], Sigma_hist[::4])
+    collection = [(mut, Vt) for mut, Vt in zip(mean_hist[::10], Sigma_hist[::10])
                   if Vt[0, 0] > 0 and Vt[1, 1] > 0 and abs(Vt[1, 0] - Vt[0, 1]) < 7e-4]
     for mut, Vt in collection:
         plot_utils.plot_ellipse(Vt, mut, ax, plot_center=False, alpha=0.9, zorder=3)
+        plt.scatter(*mut, c="black", zorder=3, s=5)
     plt.axis("equal")
     return fig, ax
 
