@@ -20,7 +20,8 @@ def smooth_step(state: Tuple[chex.Array, chex.Array, int],
 
     mean_next_hat = params.fz(mean_kf)
     cov_next_hat = Dfz(mean_kf) @ cov_kf @ Dfz(mean_kf).T + params.Qz(mean_kf, t)
-    kalman_gain = cov_kf @ Dfz(mean_kf).T @ jnp.linalg.inv(cov_next_hat + eps * jnp.eye(mean_next_hat.shape[0]))
+    cov_next_hat_eps = cov_next_hat + eps * jnp.eye(mean_next_hat.shape[0])
+    kalman_gain = jnp.linalg.solve(cov_next_hat_eps, Dfz(mean_kf).T) @ cov_kf
 
     mean_prev = mean_kf + kalman_gain @ (mean_next - mean_next_hat)
     cov_prev = cov_kf + kalman_gain @ (cov_next - cov_next_hat) @ kalman_gain.T
