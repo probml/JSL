@@ -41,7 +41,7 @@ def smooth(params: NLDS,
            return_params: List = None,
            eps: float = 0.001,
            return_filter_history: bool = False,
-           ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
+           ) -> Dict[str, Dict[str, chex.Array]]:
 
     kf_params = ["mean", "cov"]
     Dfz = jax.jacrev(params.fz)
