@@ -1,7 +1,5 @@
 import jax.numpy as jnp
-from jax import tree_map, vmap, random
-
-import haiku as hk
+from jax import tree_map
 
 from sgmcmcjax.samplers import build_sgld_sampler
 
@@ -10,7 +8,6 @@ from typing import Any, NamedTuple, Callable
 
 import warnings
 import typing_extensions
-from functools import partial
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
@@ -55,32 +52,27 @@ class Info(NamedTuple):
     ...
 
 
-def sgld_agent(key: chex.PRNGKey,
+def sgld_agent(classification: bool,
                loglikelihood: LoglikelihoodFn,
                logprior: LogpriorFn,
                model_fn: ModelFn,
                dt: float,
                batch_size: int,
                nsamples: int,
-               obs_noise: float,
                nlast: int = 10,
                buffer_size: int = 0,
                threshold: int = 1):
-    # TODO
-    partial_loglikelihood = partial(loglikelihood,
-                                    model_fn=model_fn)
-
-    rng_key = hk.PRNGSequence(key)
-
     assert threshold <= buffer_size
     memory = Memory(buffer_size)
 
     def init_state(params: Params):
         return BeliefState(params)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
+
         assert buffer_size >= len(x)
 
         x_, y_ = memory.update(x, y)
@@ -96,7 +88,7 @@ def sgld_agent(key: chex.PRNGKey,
                                      logprior,
                                      (x_, y_),
                                      batch_size_)
-        samples = sampler(next(rng_key),
+        samples = sampler(key,
                           nsamples,
                           belief.params)
 
@@ -107,32 +99,24 @@ def sgld_agent(key: chex.PRNGKey,
 
         return BeliefState(final, samples, sampler), Info
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        def predict_(params):
-            return model_fn(params, x)
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
 
-        nsamples = len(x)
-        predictions = vmap(predict_)(belief.samples)
-        predictions = jnp.mean(predictions, axis=0).reshape((nsamples, -1))
+        n = len(x)
+        predictions = model_fn(params, x).reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                          belief: BeliefState,
-                          x: chex.Array,
-                          nsamples: int):
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
 
         if belief.sampler is None:
-            return jnp.repeat(model_fn(belief.params, x), nsamples, axis=0)
+            return belief.params
 
-        def sample_and_predict(key):
-            params = belief.sampler(key,
-                                    1,
-                                    belief.params)
-            return model_fn(params, x)
+        theta = belief.sampler(key,
+                               1,
+                               belief.params)
 
-        keys = random.split(key, nsamples)
-        return vmap(sample_and_predict)(keys)
+        return theta
 
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

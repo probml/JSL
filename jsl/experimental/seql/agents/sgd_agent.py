@@ -49,7 +49,8 @@ class Info(NamedTuple):
     loss: float
 
 
-def sgd_agent(loss_fn: LossFn,
+def sgd_agent(classification: bool,
+              loss_fn: LossFn,
               model_fn: ModelFn,
               optimizer: Optimizer = optax.adam(1e-2),
               obs_noise: float = 0.01,
@@ -66,7 +67,8 @@ def sgd_agent(loss_fn: LossFn,
         opt_state = optimizer.init(params)
         return BeliefState(params, opt_state)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
 
@@ -88,20 +90,16 @@ def sgd_agent(loss_fn: LossFn,
 
         return BeliefState(params, opt_state), Info(loss)
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
 
-        params = belief.params
-
-        nsamples = len(x)
-        predictions = model_fn(params, x).reshape((nsamples, -1))
+        n = len(x)
+        predictions = model_fn(params, x).reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        return belief.params
 
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

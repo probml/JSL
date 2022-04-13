@@ -35,9 +35,9 @@ class BeliefState(NamedTuple):
     params: Params
 
 
-def lbfgs_agent(objective_fn: ObjectiveFn,
+def lbfgs_agent(classification: bool,
+                objective_fn: ObjectiveFn,
                 model_fn: ModelFn = lambda mu, x: x @ mu,
-                obs_noise: float = 1.,
                 has_aux: bool = False,
                 maxiter: int = 500,
                 tol: float = 1e-3,
@@ -109,7 +109,8 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
     def init_state(params: Params):
         return BeliefState(params)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         assert buffer_size >= len(x)
@@ -124,18 +125,16 @@ def lbfgs_agent(objective_fn: ObjectiveFn,
                                  outputs=y_)
         return BeliefState(params), info
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nsamples = len(x)
-        predictions = model_fn(belief.params, x)
-        predictions = predictions.reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = model_fn(params, x)
+        predictions = predictions.reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        return belief.params
 
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

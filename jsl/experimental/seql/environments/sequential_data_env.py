@@ -14,10 +14,8 @@ class SequentialDataEnvironment:
                  true_model: chex.Array,
                  train_batch_size: int,
                  test_batch_size: int,
-                 key: Optional[chex.PRNGKey] = None,
-                 tau: int = 1):
+                 key: Optional[chex.PRNGKey] = None):
         self.true_model = true_model
-        self.tau = tau
 
         ntrain, nfeatures = X_train.shape
         ntest, out = y_test.shape
@@ -41,12 +39,6 @@ class SequentialDataEnvironment:
 
     def get_data(self, t: int):
         return self.X_train[t], self.y_train[t], self.X_test[t], self.y_test[t]
-
-    def reward(self,
-               predictions: chex.Array,
-               t: int,
-               train: bool = False):
-        pass
 
     def shuffle_data(self, key: chex.PRNGKey):
         ntrain_batches, train_batch_size, nfeatures = self.X_train.shape

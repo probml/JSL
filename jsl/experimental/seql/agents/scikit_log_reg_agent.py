@@ -1,3 +1,5 @@
+'''# UNUSED
+
 import jax.numpy as jnp
 
 from sklearn.linear_model import LogisticRegression
@@ -39,6 +41,8 @@ def scikit_log_reg_agent(penalty='l2',
                          obs_noise=0.1,
                          threshold=1,
                          buffer_size=0):
+
+    classification = True
     memory = Memory(buffer_size)
 
     def init_state(*params: Params):
@@ -59,7 +63,8 @@ def scikit_log_reg_agent(penalty='l2',
                                     l1_ratio=l1_ratio)
         return BeliefState(params=params, clf=logreg)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         assert buffer_size >= len(x)
@@ -74,14 +79,13 @@ def scikit_log_reg_agent(penalty='l2',
         loss = logreg.score(x_, jnp.squeeze(y_))
         return BeliefState(logreg.get_params, logreg), Info(loss)
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
         return belief.clf.predict_log_proba(x)
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        return belief.params
 
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)
+'''

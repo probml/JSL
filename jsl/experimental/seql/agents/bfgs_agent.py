@@ -34,6 +34,7 @@ class ObjectiveFn(typing_extensions.Protocol):
 
 class BeliefState(NamedTuple):
     params: Params
+    Sigma: chex.Array
 
 
 class Info(NamedTuple):
@@ -53,7 +54,8 @@ class Info(NamedTuple):
     iter_num: int = 0
 
 
-def bfgs_agent(objective_fn: ObjectiveFn = mse,
+def bfgs_agent(classification: bool,
+               objective_fn: ObjectiveFn = mse,
                model_fn: ModelFn = lambda mu, x: x @ mu,
                tol: Optional[float] = None,
                options: Optional[Dict[str, Any]] = None,
@@ -74,7 +76,8 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
     def init_state(x: chex.Array):
         return BeliefState(x)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         assert buffer_size >= len(x)
@@ -89,18 +92,16 @@ def bfgs_agent(objective_fn: ObjectiveFn = mse,
                                 outputs=y_)
         return BeliefState(params), info
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nsamples = len(x)
-        predictions = model_fn(belief.params, x)
-        predictions = predictions.reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = model_fn(params, x)
+        predictions = predictions.reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        return jnp.repeat(predict(belief, x), nsamples, axis=0)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        return belief.params
 
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

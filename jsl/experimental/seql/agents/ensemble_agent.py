@@ -57,7 +57,8 @@ def bootstrap_sampling(key, nsamples):
     return vmap(sample)(keys)
 
 
-def ensemble_agent(loss_fn: LossFn,
+def ensemble_agent(classification: bool,
+                   loss_fn: LossFn,
                    model_fn: ModelFn,
                    nensembles: int,
                    optimizer: Optimizer = optax.adam(1e-2),
@@ -75,11 +76,10 @@ def ensemble_agent(loss_fn: LossFn,
         opt_states = vmap(optimizer.init)(params)
         return BeliefState(params, opt_states)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-
-        nonlocal key
 
         assert buffer_size >= len(x)
         x_, y_ = memory.update(x, y)
@@ -91,9 +91,7 @@ def ensemble_agent(loss_fn: LossFn,
 
         vbootstrap = vmap(bootstrap_sampling, in_axes=(0, None))
 
-        sample_key, key = random.split(key)
-        keys = random.split(sample_key, nensembles)
-
+        keys = random.split(key, nensembles)
         indices = vbootstrap(keys, len(x_))
 
         x_ = jnp.expand_dims(vmap(jnp.take, in_axes=(None, 0))(x_, indices), 2)
@@ -123,23 +121,18 @@ def ensemble_agent(loss_fn: LossFn,
 
         return BeliefState(params, opt_states), Info()
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nonlocal key
-
-        nsamples = len(x)
-        sample_key, key = random.split(key)
-        index = random.randint(sample_key, (), 0, nensembles)
-        params = tree_map(lambda x: x[index], belief.params)
-        predictions = model_fn(params, x).reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = model_fn(params, x).reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                          belief: BeliefState,
-                          x: chex.Array,
-                          nsamples: int):
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        sample_key, key = random.split(key)
+        index = random.randint(sample_key, (), 0, nensembles)
+        params = tree_map(lambda x: x[index], belief.params)
+        return params
 
-        return jnp.repeat(predict(belief, x), nsamples, axis=0)
-
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

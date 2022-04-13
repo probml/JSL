@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import hessian, vmap, tree_map, random
+from jax import hessian, tree_map
 
 import distrax
 
@@ -12,7 +12,6 @@ import warnings
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.utils import posterior_noise
 
 JaxOptSolver = Any
 Params = Any
@@ -44,7 +43,8 @@ class EnergyFn(typing_extensions.Protocol):
         ...
 
 
-def laplace_agent(solver: JaxOptSolver,
+def laplace_agent(classification: bool,
+                  solver: JaxOptSolver,
                   energy_fn: EnergyFn,
                   model_fn: ModelFn,
                   obs_noise: float = 0.01,
@@ -58,7 +58,8 @@ def laplace_agent(solver: JaxOptSolver,
                    Sigma: Optional[chex.Array] = None):
         return BeliefState(mu, Sigma)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         assert buffer_size >= len(x)
@@ -76,26 +77,19 @@ def laplace_agent(solver: JaxOptSolver,
         Sigma = hessian(partial_energy_fn)(params)
         return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nsamples = len(x)
-        predictions = model_fn(belief.mu, x)
-        predictions = predictions.reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = model_fn(params, x)
+        predictions = predictions.reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        keys = random.split(key, nsamples)
-        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
-                                                       belief.Sigma)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        mu, Sigma = belief.mu, belief.Sigma
+        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
+        theta = mvn.sample(seed=key, sample_shape=mu.shape)
+        return theta
 
-        def predict(key: chex.PRNGKey):
-            params = mvn.sample(seed=key, shape=belief.mu.shape)
-            return x @ params
-
-        return vmap(predict)(keys)
-
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

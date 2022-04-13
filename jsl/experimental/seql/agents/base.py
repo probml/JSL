@@ -12,6 +12,7 @@ SampleFn = Callable
 class AgentUpdateFn(typing_extensions.Protocol):
 
     def __call__(self,
+                 key: chex.PRNGKey,
                  belief: BeliefState,
                  x: chex.Array,
                  y: chex.Array) -> Tuple[BeliefState, Info]:
@@ -21,10 +22,10 @@ class AgentUpdateFn(typing_extensions.Protocol):
         ...
 
 
-class AgentPredictFn(typing_extensions.Protocol):
+class ApplyFn(typing_extensions.Protocol):
 
     def __call__(self,
-                 belief: BeliefState,
+                 params: chex.ArrayTree,
                  x: chex.Array) -> chex.Array:
         '''
         It predicts the outputs of x using the current belief state.
@@ -32,13 +33,11 @@ class AgentPredictFn(typing_extensions.Protocol):
         ...
 
 
-class SamplePredictiveFn(typing_extensions.Protocol):
+class SampleFn(typing_extensions.Protocol):
 
     def __call__(self,
                  key: chex.PRNGKey,
-                 belief: BeliefState,
-                 x: chex.Array,
-                 nsamples: int
+                 belief: BeliefState
                  ) -> chex.Array:
         ...
 
@@ -47,7 +46,8 @@ class Agent(NamedTuple):
     '''
     Agent interface.
     '''
+    classification: bool
     init_state: AgentInitFn
     update: AgentUpdateFn
-    predict: AgentPredictFn
-    sample_predictive: SamplePredictiveFn
+    apply: ApplyFn
+    sample_params: SampleFn

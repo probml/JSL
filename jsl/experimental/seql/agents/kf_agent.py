@@ -1,5 +1,5 @@
 # Kalman filter agent
-from jax import config, random, vmap
+from jax import config
 
 config.update('jax_default_matmul_precision', 'float32')
 
@@ -26,11 +26,14 @@ class Info(NamedTuple):
 
 def kalman_filter_reg(obs_noise: float = 1.,
                       return_history: bool = False):
+    classification = False
+
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         *_, input_dim = x.shape
@@ -48,26 +51,19 @@ def kalman_filter_reg(obs_noise: float = 1.,
 
         return BeliefState(mu.reshape((-1, 1)), Sigma), Info()
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nsamples = len(x)
-        predictions = x @ belief.mu
-        predictions = predictions.reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = x @ params
+        predictions = predictions.reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
-        keys = random.split(key, nsamples)
-        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
-                                                       belief.Sigma)
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        mu, Sigma = belief.mu, belief.Sigma
+        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
+        theta = mvn.sample(seed=key, sample_shape=mu.shape)
+        return theta
 
-        def predict(key: chex.PRNGKey):
-            params = mvn.sample(seed=key, shape=belief.mu.shape)
-            return x @ params
-
-        return vmap(predict)(keys)
-
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)

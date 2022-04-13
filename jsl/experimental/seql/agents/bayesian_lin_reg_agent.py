@@ -20,45 +20,44 @@ class Info(NamedTuple):
     ...
 
 
-def bayesian_reg(buffer_size: int, obs_noise: float = 1.):
+def bayesian_reg(buffer_size: int,
+                 obs_noise: float = 1.):
+    classification = False
     memory = Memory(buffer_size)
 
     def init_state(mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
 
-    def update(belief: BeliefState,
+    def update(key: chex.PRNGKey,
+               belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
         assert buffer_size >= len(x)
+
         x_, y_ = memory.update(x, y)
         Sigma0_inv = jnp.linalg.inv(belief.Sigma)
         Sigma_inv = Sigma0_inv + (x_.T @ x_) / obs_noise
+
         Sigma = jnp.linalg.inv(Sigma_inv)
         mu = Sigma @ (Sigma0_inv @ belief.mu + x_.T @ y_ / obs_noise)
+
         return BeliefState(mu, Sigma), Info()
 
-    def predict(belief: BeliefState,
-                x: chex.Array):
-        nsamples = len(x)
-        predictions = x @ belief.mu
-        predictions = predictions.reshape((nsamples, -1))
+    def apply(params: chex.ArrayTree,
+              x: chex.Array):
+        n = len(x)
+        predictions = x @ params
+        predictions = predictions.reshape((n, -1))
 
         return predictions
 
-    def sample_predictive(key: chex.PRNGKey,
-                             belief: BeliefState,
-                             x: chex.Array,
-                             nsamples: int):
+    def sample_params(key: chex.PRNGKey,
+                      belief: BeliefState):
+        mu, Sigma = belief.mu, belief.Sigma
+        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
+        theta = mvn.sample(seed=key, sample_shape=mu.shape)
 
-        keys = random.split(key, nsamples)
-        mvn = distrax.MultivariateNormalFullCovariance(belief.mu,
-                                                       belief.Sigma)
+        return theta
 
-        def predict(key: chex.PRNGKey):
-            params = mvn.sample(seed=key, shape=belief.mu.shape)
-            return x @ params
-
-        return vmap(predict)(keys)
-
-    return Agent(init_state, update, predict, sample_predictive)
+    return Agent(classification, init_state, update, apply, sample_params)
