@@ -7,8 +7,11 @@ from .base import NLDS
 
 def filter_step(state: Tuple[chex.Array, chex.Array, int],
                 xs: Tuple[chex.Array, chex.Array],
-                params: NLDS, Dfx: Callable, Dfz: Callable,
-                eps: float, return_params: Dict
+                params: NLDS,
+                Dfx: Callable,
+                Dfz: Callable,
+                eps: float,
+                return_params: Dict
                 ) -> Tuple[Tuple[chex.Array, chex.Array, int], Dict]:
     """
     Run a single step of the extended Kalman filter (EKF) algorithm.
@@ -18,7 +21,7 @@ def filter_step(state: Tuple[chex.Array, chex.Array, int],
     state: tuple
         Mean, covariance at time t-1
     xs: tuple
-        Target value and observations at time t
+        Target value and covariates at time t
     params: NLDS
         Nonlinear dynamical system parameters
     Dfx: Callable
@@ -62,8 +65,8 @@ def filter_step(state: Tuple[chex.Array, chex.Array, int],
 
 def filter(params: NLDS,
            init_state: chex.Array,
-           sample_obs: chex.Array,
-           observations: chex.Array = None,
+           observations: chex.Array,
+           covariates: chex.Array = None,
            Vinit: chex.Array = None,
            return_params: List = None,
            eps: float = 0.001,
@@ -74,9 +77,9 @@ def filter(params: NLDS,
     Parameters
     ----------
     init_state: array(state_size)
-    sample_obs: array(nsamples, obs_size)
-    observations: array(nsamples, feature_size) or None
-        optional observations to pass to the observation function
+    observations: array(nsamples, obs_size)
+    covariates: array(nsamples, feature_size) or None
+        optional covariates to pass to the observation function
     Vinit: array(state_size, state_size) or None
         Initial state covariance matrix
     return_params: list
@@ -104,8 +107,8 @@ def filter(params: NLDS,
 
     t = 0
     state = (init_state, Vt, t)
-    observations = (observations,) if type(observations) is not tuple else observations
-    xs = (sample_obs, observations)
+    covariates = (covariates,) if type(covariates) is not tuple else covariates
+    xs = (observations, covariates)
 
     return_params = [] if return_params is None else return_params
 
