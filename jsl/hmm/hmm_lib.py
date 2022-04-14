@@ -62,7 +62,7 @@ def normalize(u, axis=0, eps=1e-15):
         The values of the normalizer
     '''
     u = jnp.where(u == 0, 0, jnp.where(u < eps, eps, u))
-    c = u.sum(axis=axis)
+    c = u.sum(axis=axis, keepdims=True)
     c = jnp.where(c == 0, 1, c)
     return u / c, c
 
