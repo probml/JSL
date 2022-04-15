@@ -1,5 +1,5 @@
-# Demo showcasing the training of an MLP with a single hidden layer using 
-# Extended Kalman Filtering (EKF) and Unscented Kalman Filtering (UKF).
+# Demo showcasing the training of an MLP with a single hidden layer using
+# Extended Kalman Filtering (EKF).
 # In this demo, we consider the latent state to be the weights of an MLP.
 #   The observed state at time t is the output of the MLP as influenced by the weights
 #   at time t-1 and the covariate x[t].
@@ -7,23 +7,35 @@
 # For more information, see
 #   * Neural Network Training Using Unscented and Extended Kalman Filter
 #       https://juniperpublishers.com/raej/RAEJ.MS.ID.555568.php
-#   * UKF-based training algorithm for feed-forward neural networks with
-#     application to XOR classification problem
-#       https://ieeexplore.ieee.org/document/6234549
 
 import jax
-import numpy as np
 import jax.numpy as jnp
+from jax.random import PRNGKey, permutation, split, normal, multivariate_normal
+from jax.flatten_util import ravel_pytree
+
+import flax.linen as nn
+
+import numpy as np
 import matplotlib.pyplot as plt
 from functools import partial
+from typing import Sequence
 
 from jsl.nlds.base import NLDS
 import jsl.nlds.extended_kalman_filter as ekf_lib
-import jsl.nlds.unscented_kalman_filter as ukf_lib
-from jax.random import PRNGKey, permutation, split, normal, multivariate_normal
 
 
-def mlp(W, x, n_hidden):
+class MLP(nn.Module):
+    features: Sequence[int]
+
+    @nn.compact
+    def __call__(self, x):
+        for feat in self.features[:-1]:
+            x = nn.relu(nn.Dense(feat)(x))
+        x = nn.Dense(self.features[-1])(x)
+        return x
+
+
+def apply(flat_params, x, model, unflatten_fn):
     """
     Multilayer Perceptron (MLP) with a single hidden unit and
     tanh activation function. The input-unit and the
@@ -43,12 +55,8 @@ def mlp(W, x, n_hidden):
     * array(1,)
         Evaluation of MLP at the specified point
     """
-    W1 = W[:n_hidden].reshape(n_hidden, 1)
-    W2 = W[n_hidden: 2 * n_hidden].reshape(1, n_hidden)
-    b1 = W[2 * n_hidden: 2 * n_hidden + n_hidden]
-    b2 = W[-1]
-
-    return W2 @ jnp.tanh(W1 @ x + b1) + b2
+    params = unflatten_fn(flat_params)
+    return model.apply(params, x)
 
 
 def sample_observations(key, f, n_obs, xmin, xmax, x_noise=0.1, y_noise=3.0):
@@ -104,39 +112,51 @@ def plot_intermediate_steps_single(key, method, fwd_func, intermediate_steps, xt
     return figures
 
 
+def f(x):
+    return x - 10 * jnp.cos(x) * jnp.sin(x) + x ** 3
+
+
+def fz(W):
+    return W
+
+
 def main():
+    key = PRNGKey(314)
+    key_sample_obs, key_weights, key_init = split(key, 3)
+
     all_figures = {}
-
-    def f(x): return x - 10 * jnp.cos(x) * jnp.sin(x) + x ** 3
-
-    def fz(W): return W
 
     # *** MLP configuration ***
     n_hidden = 6
-    n_in, n_out = 1, 1
-    n_params = (n_in + 1) * n_hidden + (n_hidden + 1) * n_out
-    fwd_mlp = partial(mlp, n_hidden=n_hidden)
+    n_out = 1
+    n_in = 1
+    model = MLP([n_hidden, n_out])
+
+    batch_size = 20
+    batch = jnp.ones((batch_size, n_in))
+
+    variables = model.init(key_init, batch)
+    W0, unflatten_fn = ravel_pytree(variables)
+
+
+    fwd_mlp = partial(apply, model=model, unflatten_fn=unflatten_fn)
     # vectorised for multiple observations
     fwd_mlp_obs = jax.vmap(fwd_mlp, in_axes=[None, 0])
-    # vectorised for multiple weights
-    fwd_mlp_weights = jax.vmap(fwd_mlp, in_axes=[1, None])
     # vectorised for multiple observations and weights
     fwd_mlp_obs_weights = jax.vmap(fwd_mlp_obs, in_axes=[0, None])
 
     # *** Generating training and test data ***
     n_obs = 200
-    key = PRNGKey(314)
-    key_sample_obs, key_weights = split(key, 2)
     xmin, xmax = -3, 3
     sigma_y = 3.0
     x, y = sample_observations(key_sample_obs, f, n_obs, xmin, xmax, x_noise=0, y_noise=sigma_y)
     xtest = jnp.linspace(x.min(), x.max(), n_obs)
 
     # *** MLP Training with EKF ***
-
+    n_params = W0.size
     W0 = normal(key_weights, (n_params,)) * 1  # initial random guess
-    Q = jnp.eye(n_params) * 1e-4;  # parameters do not change
-    R = jnp.eye(1) * sigma_y ** 2;  # observation noise is fixed
+    Q = jnp.eye(n_params) * 1e-4  # parameters do not change
+    R = jnp.eye(1) * sigma_y ** 2  # observation noise is fixed
     Vinit = jnp.eye(n_params) * 100  # vague prior
 
     ekf = NLDS(fz, fwd_mlp, Q, R)
@@ -158,31 +178,6 @@ def main():
     figures_intermediates = plot_intermediate_steps_single(key, "ekf", fwd_mlp_obs_weights,
                                                            intermediate_steps, xtest, ekf_mu_hist, ekf_Sigma_hist, x, y)
     all_figures = {**all_figures, **figures_intermediates}
-
-    use_ukf = True
-    if use_ukf:
-        Vinit = jnp.eye(n_params) * 5  # vague prior
-        alpha, beta, kappa = 0.01, 2.0, 3.0 - n_params
-        ukf = NLDS(fz, lambda w, x: fwd_mlp_weights(w, x).T, Q, R, alpha, beta, kappa, n_params)
-        ukf_mu_hist, ukf_Sigma_hist = ukf_lib.filter(ukf, W0, y, x[:, None], Vinit)
-        step = -1
-        W_ukf, SW_ukf = ukf_mu_hist[step], ukf_Sigma_hist[step]
-
-        fig, ax = plt.subplots()
-        plot_mlp_prediction(key, x, y, xtest, fwd_mlp_obs_weights, W_ukf, SW_ukf, ax)
-        ax.set_title("UKF + MLP")
-        all_figures["ukf-mlp"] = fig
-
-        fig, ax = plt.subplots(2, 2)
-        plot_intermediate_steps(key, ax, fwd_mlp_obs_weights, intermediate_steps, xtest, ukf_mu_hist, ukf_Sigma_hist, x,
-                                y)
-        plt.suptitle("UKF + MLP training")
-        all_figures["ukf-mlp-intermediate"] = fig
-        figures_intermediate = plot_intermediate_steps_single(key, "ukf", fwd_mlp_obs_weights,
-                                                              intermediate_steps, xtest, ukf_mu_hist, ukf_Sigma_hist, x,
-                                                              y)
-        all_figures = {**all_figures, **figures_intermediate}
-
     return all_figures
 
 
