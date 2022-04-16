@@ -1,7 +1,8 @@
 __all__ = [
     "sis_vs_smc",
     "ekf_vs_ukf",
-    "ekf_vs_ukf_mlp",
+    "ukf_mlp",
+    "ekf_mlp",
     "eekf_logistic_regression",
     "ekf_mlp_anim",
     "linreg_kf",
