@@ -1,6 +1,7 @@
 import chex
 import jax.numpy as jnp
 from jax import jit, random, tree_leaves, tree_map
+from jax.flatten_util import ravel_pytree
 
 import optax
 import haiku as hk
@@ -9,16 +10,18 @@ from jaxopt import ScipyMinimize
 from functools import partial
 from matplotlib import pyplot as plt
 
-from jsl.experimental.seql.agents.bfgs_agent import bfgs_agent
-from jsl.experimental.seql.agents.blackjax_nuts_agent import blackjax_nuts_agent
-from jsl.experimental.seql.agents.laplace_agent import laplace_agent
-from jsl.experimental.seql.agents.lbfgs_agent import lbfgs_agent
-from jsl.experimental.seql.agents.sgd_agent import sgd_agent
-from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
+from jsl.experimental.seql.agents.bfgs_agent import BFGSAgent
+from jsl.experimental.seql.agents.blackjax_nuts_agent import BlackJaxNutsAgent
+from jsl.experimental.seql.agents.laplace_agent import LaplaceAgent
+from jsl.experimental.seql.agents.lbfgs_agent import LBFGSAgent
+from jsl.experimental.seql.agents.sgd_agent import SGDAgent
+from jsl.experimental.seql.agents.sgmcmc_sgld_agent import SGLDAgent
+from jsl.experimental.seql.agents.eekf_agent import EEKFAgent
 from jsl.experimental.seql.environments.base import make_classification_mlp_environment, make_mlp
 from jsl.experimental.seql.experiments.experiment_utils import run_experiment
 from jsl.experimental.seql.utils import mse, train
 from jsl.experimental.seql.experiments.plotting import colors
+from jsl.nlds.extended_kalman_filter import NLDS
 
 plt.style.use("seaborn-poster")
 
@@ -68,11 +71,20 @@ def callback_fn(agent, env, agent_name, **kwargs):
 def initialize_params(agent_name, **kwargs):
     nfeatures = kwargs["nfeatures"]
     transformed = kwargs["transformed"]
-    key = kwargs["key"]
+    key = kwargs["init_key"]
 
     dummy_input = jnp.zeros([1, nfeatures])
     params = transformed.init(key, dummy_input)
-    return params
+
+    if agent_name=="eekf":
+        mu, _ = ravel_pytree(params)
+        sigma_key, key = random.split(key, 2)
+        n = mu.size
+        Sigma = random.normal(sigma_key,
+                              shape=(n, n))
+        return (mu, Sigma)
+
+    return (params,)
 
 
 def sweep(agents, env, train_batch_size, ntrain, nsteps, figsize=(12, 6), **init_kwargs):
@@ -107,7 +119,7 @@ def sweep(agents, env, train_batch_size, ntrain, nsteps, figsize=(12, 6), **init
 
 def main():
     key = random.PRNGKey(0)
-    model_key, env_key, nuts_key, sgld_key, init_key = random.split(key, 5)
+    model_key, env_key, nuts_key, sgld_key, init_key, eekf_key = random.split(key, 6)
     degree = 3
     ntrain = 50
     ntest = 50
@@ -151,94 +163,118 @@ def main():
     optimizer = optax.adam(1e-3)
 
     nepochs = 4
-    sgd = sgd_agent(mse,
-                    model_fn,
-                    optimizer=optimizer,
-                    obs_noise=obs_noise,
-                    nepochs=nepochs,
-                    buffer_size=buffer_size)
+    sgd = SGDAgent(mse,
+                   model_fn,
+                   optimizer=optimizer,
+                   obs_noise=obs_noise,
+                   nepochs=nepochs,
+                   buffer_size=buffer_size,
+                   is_classifier=True)
 
-    batch_sgd = sgd_agent(mse,
-                          model_fn,
-                          optimizer=optimizer,
-                          obs_noise=obs_noise,
-                          buffer_size=buffer_size,
-                          nepochs=nepochs * nsteps)
+    batch_sgd = SGDAgent(mse,
+                         model_fn,
+                         optimizer=optimizer,
+                         obs_noise=obs_noise,
+                         buffer_size=buffer_size,
+                         nepochs=nepochs * nsteps,
+                         is_classifier=True)
 
     nsamples, nwarmup = 200, 100
-    nuts = blackjax_nuts_agent(nuts_key,
-                               negative_mean_square_error,
-                               model_fn,
-                               nsamples=nsamples,
-                               nwarmup=nwarmup,
-                               obs_noise=obs_noise,
-                               buffer_size=buffer_size)
+    nuts = BlackJaxNutsAgent(
+        negative_mean_square_error,
+        model_fn,
+        nsamples=nsamples,
+        nwarmup=nwarmup,
+        obs_noise=obs_noise,
+        buffer_size=buffer_size,
+        is_classifier=True)
 
-    batch_nuts = blackjax_nuts_agent(nuts_key,
-                                     negative_mean_square_error,
-                                     model_fn,
-                                     nsamples=nsamples * nsteps,
-                                     nwarmup=nwarmup,
-                                     obs_noise=obs_noise,
-                                     buffer_size=buffer_size)
+    batch_nuts = BlackJaxNutsAgent(negative_mean_square_error,
+                                   model_fn,
+                                   nsamples=nsamples * nsteps,
+                                   nwarmup=nwarmup,
+                                   obs_noise=obs_noise,
+                                   buffer_size=buffer_size,
+                                   is_classifier=True)
 
     partial_logprob_fn = partial(negative_mean_square_error,
                                  model_fn=model_fn)
     dt = 1e-4
-    sgld = sgld_agent(sgld_key,
-                      partial_logprob_fn,
-                      logprior_fn,
-                      model_fn,
-                      dt=dt,
-                      batch_size=batch_size,
-                      nsamples=nsamples,
-                      obs_noise=obs_noise,
-                      buffer_size=buffer_size)
+    sgld = SGLDAgent(
+        partial_logprob_fn,
+        logprior_fn,
+        model_fn,
+        dt=dt,
+        batch_size=batch_size,
+        nsamples=nsamples,
+        obs_noise=obs_noise,
+        buffer_size=buffer_size,
+        is_classifier=True)
 
     dt = 1e-5
-    batch_sgld = sgld_agent(sgld_key,
-                            partial_logprob_fn,
-                            logprior_fn,
-                            model_fn,
-                            dt=dt,
-                            batch_size=batch_size,
-                            nsamples=nsamples * nsteps,
-                            obs_noise=obs_noise,
-                            buffer_size=buffer_size)
+    batch_sgld = SGLDAgent(
+        partial_logprob_fn,
+        logprior_fn,
+        model_fn,
+        dt=dt,
+        batch_size=batch_size,
+        nsamples=nsamples * nsteps,
+        obs_noise=obs_noise,
+        buffer_size=buffer_size,
+        is_classifier=True)
 
     tau = 1.
     strength = obs_noise / tau
     partial_objective_fn = partial(penalized_objective_fn, strength=strength)
 
-    bfgs = bfgs_agent(partial_objective_fn,
-                      model_fn=model_fn,
-                      obs_noise=obs_noise,
-                      buffer_size=buffer_size)
+    bfgs = BFGSAgent(partial_objective_fn,
+                     model_fn=model_fn,
+                     obs_noise=obs_noise,
+                     buffer_size=buffer_size,
+                     is_classifier=True)
 
-    batch_bfgs = bfgs_agent(partial_objective_fn,
-                            model_fn=model_fn,
-                            obs_noise=obs_noise,
-                            buffer_size=buffer_size)
+    batch_bfgs = BFGSAgent(partial_objective_fn,
+                           model_fn=model_fn,
+                           obs_noise=obs_noise,
+                           buffer_size=buffer_size,
+                           is_classifier=True)
 
-    lbfgs = lbfgs_agent(partial_objective_fn,
-                        model_fn=model_fn,
-                        obs_noise=obs_noise,
-                        history_size=buffer_size)
+    lbfgs = LBFGSAgent(partial_objective_fn,
+                       model_fn=model_fn,
+                       obs_noise=obs_noise,
+                       history_size=buffer_size,
+                       is_classifier=True)
 
-    batch_lbfgs = lbfgs_agent(partial_objective_fn,
-                              model_fn=model_fn,
-                              obs_noise=obs_noise,
-                              history_size=buffer_size)
+    batch_lbfgs = LBFGSAgent(partial_objective_fn,
+                             model_fn=model_fn,
+                             obs_noise=obs_noise,
+                             history_size=buffer_size,
+                             is_classifier=True)
 
     energy_fn = partial(partial_objective_fn, model_fn=model_fn)
     solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-    laplace = laplace_agent(solver,
-                            energy_fn,
-                            model_fn,
-                            obs_noise=obs_noise,
-                            buffer_size=buffer_size)
+    laplace = LaplaceAgent(solver,
+                           energy_fn,
+                           model_fn,
+                           obs_noise=obs_noise,
+                           buffer_size=buffer_size,
+                           is_classifier=True)
+
+    initial_params = transformed.init(eekf_key,
+                                      jnp.zeros((ntrain, nfeatures)))
+    flat_params, unflatten_fn = ravel_pytree(initial_params)
+
+    def fx(flat_params, x):
+        params = unflatten_fn(flat_params)
+        return model_fn(params, x)
+
+    Q = jnp.eye(flat_params.size) * 1e-4  # parameters do not change
+    R = jnp.eye(1) * obs_noise
+    nlds = NLDS(lambda x: x, fx, Q, R)
+    eekf = EEKFAgent(nlds, is_classifier=True)
 
     agents = {
+        "eekf": eekf,
         "sgd": sgd,
         "laplace": laplace,
         "bfgs": bfgs,
@@ -248,6 +284,7 @@ def main():
     }
 
     batch_agents = {
+        "eekf": eekf,
         "sgd": batch_sgd,
         "laplace": laplace,
         "bfgs": batch_bfgs,
@@ -258,18 +295,25 @@ def main():
 
     nrows = len(agents)
     ncols = 1
-    run_experiment(agents,
+
+    nsamples, njoint = 20, 10
+
+    run_experiment(init_key,
+                   agents,
                    env,
                    initialize_params,
                    batch_size,
-                   ntrain, nsteps,
+                   ntrain,
+                   nsteps,
+                   nsamples,
+                   njoint,
                    nrows,
                    ncols,
                    callback_fn,
                    degree=degree,
                    obs_noise=obs_noise,
                    timesteps=list(range(nsteps)),
-                   key=init_key,
+                   init_key=init_key,
                    nfeatures=nfeatures,
                    transformed=transformed,
                    batch_agents=batch_agents)

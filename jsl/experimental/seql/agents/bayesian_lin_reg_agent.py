@@ -9,7 +9,7 @@ import jax.numpy as jnp
 import distrax
 
 import chex
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 
 # Local imports
 from jsl.experimental.seql.agents.base import Agent
@@ -20,44 +20,55 @@ class Info(NamedTuple):
     ...
 
 
-def bayesian_reg(buffer_size: int,
-                 obs_noise: float = 1.):
-    classification = False
-    memory = Memory(buffer_size)
+class BayesianReg(Agent):
 
-    def init_state(mu: chex.Array,
-                   Sigma: chex.Array):
+    def __init__(self,
+                 buffer_size: int,
+                 obs_noise: float,
+                 is_classifier: bool = False):
+        assert is_classifier == False
+        self.memory = Memory(buffer_size)
+        super(BayesianReg, self).__init__(is_classifier)
+
+        self.buffer_size = buffer_size
+        self.obs_noise = obs_noise
+        self.model_fn = lambda params, x: x @ params
+
+    def init_state(self,
+                   mu: chex.Array,
+                   Sigma: chex.Array) -> BeliefState:
         return BeliefState(mu, Sigma)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
-               y: chex.Array):
-        assert buffer_size >= len(x)
+               y: chex.Array) -> Tuple[BeliefState, Info]:
+        assert self.buffer_size >= len(x)
 
-        x_, y_ = memory.update(x, y)
+        x_, y_ = self.memory.update(x, y)
         Sigma0_inv = jnp.linalg.inv(belief.Sigma)
-        Sigma_inv = Sigma0_inv + (x_.T @ x_) / obs_noise
+        Sigma_inv = Sigma0_inv + (x_.T @ x_) / self.obs_noise
 
         Sigma = jnp.linalg.inv(Sigma_inv)
-        mu = Sigma @ (Sigma0_inv @ belief.mu + x_.T @ y_ / obs_noise)
+        mu = Sigma @ (Sigma0_inv @ belief.mu + x_.T @ y_ / self.obs_noise)
 
         return BeliefState(mu, Sigma), Info()
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = x @ params
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
-        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
-        theta = mvn.sample(seed=key, sample_shape=mu.shape)
-
+        mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
+                                                       Sigma)
+        theta = mvn.sample(seed=key)
+        theta = theta.reshape(mu.shape)
         return theta
-
-    return Agent(classification, init_state, update, apply, sample_params)

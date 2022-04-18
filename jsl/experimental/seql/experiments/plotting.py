@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import vmap
+from jax import vmap, random
 
 import seaborn as sns
 from functools import reduce
@@ -83,7 +83,10 @@ def plot_regression_posterior_predictive(ax,
 
     X_train, Y_train = sort_data(X_train, Y_train)
 
-    mu = agent.predict(belief, X_train)
+    theta = agent.sample_params(random.PRNGKey(0), belief)
+
+    print(theta.shape)
+    mu = agent._apply(theta, X_train)
     sigma = get_noise(agent_name,
                       belief,
                       X_train,

@@ -24,15 +24,26 @@ class Info(NamedTuple):
     Sigma_hist: chex.Array = None
 
 
-def kalman_filter_reg(obs_noise: float = 1.,
-                      return_history: bool = False):
-    classification = False
+class KalmanFilterRegAgent(Agent):
 
-    def init_state(mu: chex.Array,
+    def __init__(self,
+                 obs_noise: float = 1.,
+                 return_history: bool = False,
+                 is_classifier: bool = False):
+        assert is_classifier == False
+        super(KalmanFilterRegAgent, self).__init__(is_classifier)
+
+        self.obs_noise = obs_noise
+        self.return_history = return_history
+        self.model_fn = lambda params, x: x @ params
+
+    def init_state(self,
+                   mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
@@ -41,29 +52,29 @@ def kalman_filter_reg(obs_noise: float = 1.,
         A, Q = jnp.eye(input_dim), 0
         C = lambda t: x[t][None, ...]
 
-        lds = LDS(A, C, Q, obs_noise, belief.mu, belief.Sigma)
+        lds = LDS(A, C, Q, self.obs_noise, belief.mu, belief.Sigma)
         mu, Sigma, _, _ = kalman_filter(lds, y,
-                                        return_history=return_history)
-        if return_history:
+                                        return_history=self.return_history)
+        if self.return_history:
             history = (mu, Sigma)
             mu, Sigma = mu[-1], Sigma[-1]
             return BeliefState(mu, Sigma), Info(*history)
 
         return BeliefState(mu.reshape((-1, 1)), Sigma), Info()
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = x @ params
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
-        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
-        theta = mvn.sample(seed=key, sample_shape=mu.shape)
+        mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
+                                                       Sigma)
+        theta = mvn.sample(seed=key).reshape(mu.shape)
         return theta
-
-    return Agent(classification, init_state, update, apply, sample_params)

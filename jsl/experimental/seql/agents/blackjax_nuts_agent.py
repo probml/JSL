@@ -1,6 +1,7 @@
 import warnings
 import chex
-from jax import jit, random, lax, tree_map
+from jax import jit, random, lax, tree_map, vmap
+from jax.tree_util import tree_flatten, tree_unflatten
 
 import blackjax.nuts as nuts
 import blackjax.stan_warmup as stan_warmup
@@ -65,39 +66,54 @@ def inference_loop(rng_key, kernel, initial_state, num_samples):
     return final, states
 
 
-def blackjax_nuts_agent(classification: bool,
-                        logprob_fn: LogProbFN,
-                        model_fn: ModelFn,
-                        nsamples: int,
-                        nwarmup: int,
-                        nlast: int = 10,
-                        buffer_size: int = 0,
-                        threshold: int = 1):
-    if buffer_size == jnp.inf:
-        buffer_size = 0
+class BlackJaxNutsAgent(Agent):
 
-    assert threshold <= buffer_size or buffer_size == 0
-    memory = Memory(buffer_size)
+    def __init__(self,
+                 logprob_fn: LogProbFN,
+                 model_fn: ModelFn,
+                 nsamples: int,
+                 nwarmup: int,
+                 nlast: int = 10,
+                 buffer_size: int = 0,
+                 threshold: int = 1,
+                 obs_noise: float = 0.1,
+                 is_classifier: bool = False):
 
-    def init_state(initial_position: Params):
+        super(BlackJaxNutsAgent, self).__init__(is_classifier)
+
+        if buffer_size == jnp.inf:
+            buffer_size = 0
+
+        assert threshold <= buffer_size or buffer_size == 0
+        self.memory = Memory(buffer_size)
+
+        self.logprob_fn = logprob_fn
+        self.model_fn = model_fn
+        self.nwarmup = nwarmup
+        self.nlast = nlast
+        self.nsamples = nsamples
+
+    def init_state(self,
+                   initial_position: Params):
         nuts_state = NutsState(initial_position)
         return BeliefState(nuts_state)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
 
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, Info()
 
         @jit
         def partial_potential_fn(params):
-            return logprob_fn(params, x_, y_, model_fn)
+            return self.logprob_fn(params, x_, y_, self.model_fn)
 
         warmup_key, sample_key = random.split(key)
 
@@ -110,7 +126,7 @@ def blackjax_nuts_agent(classification: bool,
         final_state, (step_size, inverse_mass_matrix), info = stan_warmup.run(warmup_key,
                                                                               kernel_generator,
                                                                               state,
-                                                                              nwarmup)
+                                                                              self.nwarmup)
 
         # Inference
         nuts_kernel = jit(nuts.kernel(partial_potential_fn,
@@ -120,25 +136,39 @@ def blackjax_nuts_agent(classification: bool,
         final, states = inference_loop(sample_key,
                                        nuts_kernel,
                                        state,
-                                       nsamples)
+                                       self.nsamples)
 
         belief_state = BeliefState(tree_map(lambda x: jnp.mean(x, axis=0), states),
                                    step_size,
                                    inverse_mass_matrix,
-                                   tree_map(lambda x: x[-nlast:], states),
+                                   tree_map(lambda x: x[-self.nlast:], states),
                                    partial_potential_fn)
         return belief_state, Info()
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
 
+        def get_predictions(samples):
+            flat_tree, pytree_def = tree_flatten(samples)
+
+            def _predict(*args):
+                pytree = tree_unflatten(pytree_def, args[0])
+
+                return self.model_fn(pytree, x)
+
+            return vmap(_predict)(flat_tree)
+
+        predictions = get_predictions(belief.samples.position)
+        posterior_cov = jnp.diag(jnp.power(jnp.std(predictions, axis=0),
+                                           2)
+                                 )
         n = len(x)
-        predictions = model_fn(params, x)
-        predictions = predictions.reshape((n, -1))
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
 
         if belief.potential_fn is None:
@@ -158,5 +188,3 @@ def blackjax_nuts_agent(classification: bool,
                                        1)
 
         return final.position
-
-    return Agent(classification, init_state, update, apply, sample_params)

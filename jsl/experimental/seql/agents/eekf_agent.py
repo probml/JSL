@@ -1,4 +1,6 @@
 # EEKF agent
+import jax.numpy as jnp
+
 import chex
 import distrax
 
@@ -10,41 +12,53 @@ from jsl.nlds.extended_kalman_filter import filter
 from jsl.experimental.seql.agents.kf_agent import BeliefState, Info
 
 
-def eekf(nlds: NLDS,
-         return_params: List[str] = ["mean", "cov"],
-         return_history: bool = False):
-    classification = True
+class EEKFAgent(Agent):
 
-    def init_state(mu: chex.Array,
+    def __init__(self,
+                 nlds: NLDS,
+                 return_params: List[str] = ["mean", "cov"],
+                 return_history: bool = False,
+                 is_classifier: bool = True):
+        assert is_classifier == True
+        super(EEKFAgent, self).__init__(is_classifier)
+
+        self.nlds = nlds
+        self.return_params = return_params
+        self.return_history = return_history
+        self.model_fn = lambda params, x: x @ params
+
+    def init_state(self,
+                   mu: chex.Array,
                    Sigma: chex.Array):
         return BeliefState(mu, Sigma)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        (mu, Sigma), history = filter(nlds, belief.mu,
+        (mu, Sigma), history = filter(self.nlds,
+                                      belief.mu,
                                       y, x, belief.Sigma,
-                                      return_params,
-                                      return_history=return_history)
-        if return_history:
+                                      self.return_params,
+                                      return_history=self.return_history)
+        if self.return_history:
             return BeliefState(mu, Sigma), Info(history["mean"], history["cov"])
 
         return BeliefState(mu, Sigma), Info()
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = x @ params
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
         mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
         theta = mvn.sample(seed=key, sample_shape=mu.shape)
         return theta
-
-    return Agent(classification, init_state, update, apply, sample_params)

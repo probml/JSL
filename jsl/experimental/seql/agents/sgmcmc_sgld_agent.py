@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import tree_map
+from jax import tree_map, vmap
 
 from sgmcmcjax.samplers import build_sgld_sampler
 
@@ -52,62 +52,82 @@ class Info(NamedTuple):
     ...
 
 
-def sgld_agent(classification: bool,
-               loglikelihood: LoglikelihoodFn,
-               logprior: LogpriorFn,
-               model_fn: ModelFn,
-               dt: float,
-               batch_size: int,
-               nsamples: int,
-               nlast: int = 10,
-               buffer_size: int = 0,
-               threshold: int = 1):
-    assert threshold <= buffer_size
-    memory = Memory(buffer_size)
+class SGLDAgent(Agent):
 
-    def init_state(params: Params):
+    def __init__(self,
+                 loglikelihood: LoglikelihoodFn,
+                 logprior: LogpriorFn,
+                 model_fn: ModelFn,
+                 dt: float,
+                 batch_size: int,
+                 nsamples: int,
+                 nlast: int = 10,
+                 buffer_size: int = 0,
+                 threshold: int = 1,
+                 obs_noise=0.1,
+                 is_classifier: bool = False):
+        super(SGLDAgent, self).__init__(is_classifier)
+        assert threshold <= buffer_size
+        self.memory = Memory(buffer_size)
+        self.buffer_size = buffer_size
+        self.threshold = threshold
+        self.nlast = nlast
+        self.batch_size = batch_size
+        self.nsamples = nsamples
+        self.dt = dt
+        self.model_fn = model_fn
+        self.logprior = logprior
+        self.loglikelihood = loglikelihood
+
+    def init_state(self,
+                   params: Params):
         return BeliefState(params)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
 
-        assert buffer_size >= len(x)
+        assert self.buffer_size >= len(x)
 
-        x_, y_ = memory.update(x, y)
-        if len(x_) < threshold:
+        x_, y_ = self.memory.update(x, y)
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             info = Info(False, -1, jnp.inf)
             return belief, info
 
-        batch_size_ = len(x_) if batch_size == -1 else batch_size
+        batch_size_ = len(x_) if self.batch_size == -1 else self.batch_size
 
-        sampler = build_sgld_sampler(dt,
-                                     loglikelihood,
-                                     logprior,
+        sampler = build_sgld_sampler(self.dt,
+                                     self.loglikelihood,
+                                     self.logprior,
                                      (x_, y_),
                                      batch_size_)
         samples = sampler(key,
-                          nsamples,
+                          self.nsamples,
                           belief.params)
 
         final = tree_map(lambda x: x.mean(axis=0),
                          samples)
-        samples = tree_map(lambda x: x[-buffer_size:],
+        samples = tree_map(lambda x: x[-self.buffer_size:],
                            samples)
 
         return BeliefState(final, samples, sampler), Info
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
 
         n = len(x)
-        predictions = model_fn(params, x).reshape((n, -1))
+        predictions = vmap(self.model_fn, in_axis=(0, None))(belief.samples,
+                                                             x)
+        posterior_cov = jnp.diag(jnp.power(jnp.std(predictions, axis=0), 2))
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
 
         if belief.sampler is None:
@@ -118,5 +138,3 @@ def sgld_agent(classification: bool,
                                belief.params)
 
         return theta
-
-    return Agent(classification, init_state, update, apply, sample_params)

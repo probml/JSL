@@ -57,41 +57,55 @@ def bootstrap_sampling(key, nsamples):
     return vmap(sample)(keys)
 
 
-def ensemble_agent(classification: bool,
-                   loss_fn: LossFn,
-                   model_fn: ModelFn,
-                   nensembles: int,
-                   optimizer: Optimizer = optax.adam(1e-2),
-                   buffer_size: int = jnp.inf,
-                   nepochs: int = 20,
-                   threshold: int = 1,
-                   key: chex.PRNGKey = random.PRNGKey(0)):
-    assert threshold <= buffer_size
+class EnsembleAgent(Agent):
 
-    memory = Memory(buffer_size)
-    partial_loss_fn = partial(loss_fn, model_fn=model_fn)
-    value_and_grad_fn = jit(value_and_grad(partial_loss_fn))
+    def __init__(self,
+                 loss_fn: LossFn,
+                 model_fn: ModelFn,
+                 nensembles: int,
+                 optimizer: Optimizer = optax.adam(1e-2),
+                 buffer_size: int = jnp.inf,
+                 nepochs: int = 20,
+                 threshold: int = 1,
+                 is_classifier: bool = False):
 
-    def init_state(params: Params):
-        opt_states = vmap(optimizer.init)(params)
+        super(EnsembleAgent, self).__init__(is_classifier)
+
+        assert threshold <= buffer_size
+
+        self.memory = Memory(buffer_size)
+        partial_loss_fn = partial(loss_fn, model_fn=model_fn)
+
+        self.model_fn = model_fn
+        self.value_and_grad_fn = jit(value_and_grad(partial_loss_fn))
+        self.nensembles = nensembles
+        self.optimizer = optimizer
+        self.buffer_size = buffer_size
+        self.nepochs = nepochs
+        self.threshold = threshold
+
+    def init_state(self,
+                   params: Params):
+        opt_states = vmap(self.optimizer.init)(params)
         return BeliefState(params, opt_states)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
 
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             info = Info(False, -1, jnp.inf)
             return belief, info
 
         vbootstrap = vmap(bootstrap_sampling, in_axes=(0, None))
 
-        keys = random.split(key, nensembles)
+        keys = random.split(key, self.nensembles)
         indices = vbootstrap(keys, len(x_))
 
         x_ = jnp.expand_dims(vmap(jnp.take, in_axes=(None, 0))(x_, indices), 2)
@@ -99,14 +113,14 @@ def ensemble_agent(classification: bool,
 
         def train(params, opt_state, x, y):
             prior = params["params"]["prior"]
-            for _ in range(nepochs):
+            for _ in range(self.nepochs):
                 params = frozen_dict.freeze(
                     {"params": {"prior": prior,
                                 "trainable": params["params"]["trainable"]
                                 }
                      })
-                loss, grads = value_and_grad_fn(params, x, y)
-                updates, opt_state = optimizer.update(grads, opt_state)
+                loss, grads = self.value_and_grad_fn(params, x, y)
+                updates, opt_state = self.optimizer.update(grads, opt_state)
                 params = optax.apply_updates(params, updates)
 
             params = frozen_dict.freeze(
@@ -121,18 +135,20 @@ def ensemble_agent(classification: bool,
 
         return BeliefState(params, opt_states), Info()
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
-        n = len(x)
-        predictions = model_fn(params, x).reshape((n, -1))
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
+        vpredict = vmap(self.model_fn, in_axes=(0, None))
+        predictions = vpredict(belief.params, x)
+        posterior_cov = jnp.diag(jnp.power(jnp.std(predictions,
+                                                   axis=0), 2))
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         sample_key, key = random.split(key)
-        index = random.randint(sample_key, (), 0, nensembles)
+        index = random.randint(sample_key, (), 0, self.nensembles)
         params = tree_map(lambda x: x[index], belief.params)
         return params
-
-    return Agent(classification, init_state, update, apply, sample_params)

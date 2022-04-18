@@ -79,7 +79,7 @@ def scikit_log_reg_agent(penalty='l2',
         loss = logreg.score(x_, jnp.squeeze(y_))
         return BeliefState(logreg.get_params, logreg), Info(loss)
 
-    def apply(params: chex.ArrayTree,
+    def _apply(params: chex.ArrayTree,
               x: chex.Array):
         return belief.clf.predict_log_proba(x)
 
@@ -87,5 +87,5 @@ def scikit_log_reg_agent(penalty='l2',
                       belief: BeliefState):
         return belief.params
 
-    return Agent(classification, init_state, update, apply, sample_params)
+    return Agent(classification, init_state, update, _apply, sample_params)
 '''

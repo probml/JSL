@@ -19,7 +19,7 @@ from jsl.experimental.seql.utils import mse, train
 
 # Prediction function to be resued in Part 3
 def get_predictions(model, params, X):
-    y = model.apply(params, X)
+    y = model._apply(params, X)
     return y
 
 

@@ -1,14 +1,18 @@
 '''
 Models and functions that are used for experiments.
 '''
+from jax import random
 
 import flax.linen as nn
+
 import matplotlib.pyplot as plt
 
 import chex
+from typing import List, Callable, Tuple
 
 from jsl.experimental.seql.utils import train
-
+from jsl.experimental.seql.agents.base import Agent
+from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
 
 class MLP(nn.Module):
     nclasses: int
@@ -56,17 +60,21 @@ class LeNet5(nn.Module):
         return x.squeeze()
 
 
-def run_experiment(agents,
-                   env,
-                   initialize_params,
-                   train_batch_size,
-                   ntrain,
-                   nsteps,
-                   nrows,
-                   ncols,
-                   callback_fn,
-                   figsize=(56, 48),
+def run_experiment(key: chex.PRNGKey,
+                   agents: List[Agent],
+                   env: SequentialDataEnvironment,
+                   initialize_params: Callable,
+                   train_batch_size: int,
+                   ntrain: int,
+                   nsteps: int,
+                   nsamples: int,
+                   njoint: int,
+                   nrows: int,
+                   ncols: int,
+                   callback_fn: Callable,
+                   figsize: Tuple[int, int] = (56, 48),
                    **init_kwargs):
+
     batch_agents_included = "batch_agents" in init_kwargs
 
     if nrows != 1:
@@ -105,8 +113,15 @@ def run_experiment(agents,
                                                         **init_kwargs,
                                                         **kwargs)
 
-        train(belief, agent, env(train_batch_size),
-              nsteps=nsteps, callback=partial_callback)
+        train_key, key = random.split(key)
+        train(train_key,
+              belief,
+              agent,
+              env(train_batch_size),
+              nsamples=nsamples,
+              njoint=njoint,
+              nsteps=nsteps,
+              callback=partial_callback)
 
         if batch_agents_included:
             batch_agent = init_kwargs["batch_agents"][agent_name]
@@ -121,5 +136,13 @@ def run_experiment(agents,
                                                             subplot_idx=(idx + 1) * ncols,
                                                             **init_kwargs,
                                                             **kwargs)
-            train(belief, batch_agent, env(ntrain),
-                  nsteps=1, callback=partial_callback)
+
+            train_key, key = random.split(key)
+            train(train_key,
+                  belief,
+                  batch_agent,
+                  env(ntrain),
+                  nsamples=nsamples,
+                  njoint=njoint,
+                  nsteps=1,
+                  callback=partial_callback)

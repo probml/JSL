@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import jit, value_and_grad
+from jax import jit, value_and_grad, lax
 
 import optax
 
@@ -49,33 +49,47 @@ class Info(NamedTuple):
     loss: float
 
 
-def sgd_agent(classification: bool,
-              loss_fn: LossFn,
-              model_fn: ModelFn,
-              optimizer: Optimizer = optax.adam(1e-2),
-              obs_noise: float = 0.01,
-              buffer_size: int = jnp.inf,
-              nepochs: int = 20,
-              threshold: int = 1):
-    assert threshold <= buffer_size
+class SGDAgent(Agent):
 
-    memory = Memory(buffer_size)
-    partial_loss_fn = partial(loss_fn, model_fn=model_fn)
-    value_and_grad_fn = jit(value_and_grad(partial_loss_fn))
+    def __init__(self,
+                 loss_fn: LossFn,
+                 model_fn: ModelFn,
+                 optimizer: Optimizer = optax.adam(1e-2),
+                 obs_noise: float = 0.1,
+                 buffer_size: int = jnp.inf,
+                 nepochs: int = 20,
+                 threshold: int = 1,
+                 is_classifier: bool = False):
+        super(SGDAgent, self).__init__(is_classifier)
+        assert threshold <= buffer_size
+        self.buffer_size = buffer_size
+        memory = Memory(buffer_size)
+        self.memory = memory
+        self.threshold = threshold
 
-    def init_state(params: Params):
-        opt_state = optimizer.init(params)
+        partial_loss_fn = partial(loss_fn, model_fn=model_fn)
+        value_and_grad_fn = jit(value_and_grad(partial_loss_fn))
+        self.optimizer = optimizer
+        self.nepochs = nepochs
+        self.value_and_grad_fn = value_and_grad_fn
+        self.model_fn = model_fn
+        self.obs_noise = obs_noise
+
+    def init_state(self,
+                   params: Params):
+        opt_state = self.optimizer.init(params)
         return BeliefState(params, opt_state)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
 
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             info = Info(False, -1, jnp.inf)
             return belief, info
@@ -83,23 +97,22 @@ def sgd_agent(classification: bool,
         params = belief.params
         opt_state = belief.opt_state
 
-        for _ in range(nepochs):
-            loss, grads = value_and_grad_fn(params, x_, y_)
-            updates, opt_state = optimizer.update(grads, opt_state)
+        for _ in range(self.nepochs):
+            loss, grads = self.value_and_grad_fn(params, x_, y_)
+            updates, opt_state = self.optimizer.update(grads, opt_state)
             params = optax.apply_updates(params, updates)
 
         return BeliefState(params, opt_state), Info(loss)
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
-
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = model_fn(params, x).reshape((n, -1))
+        posterior_cov = self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         return belief.params
-
-    return Agent(classification, init_state, update, apply, sample_params)

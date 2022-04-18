@@ -1,4 +1,6 @@
 from functools import partial
+from jax import lax
+
 import warnings
 import jax.numpy as jnp
 
@@ -35,106 +37,114 @@ class BeliefState(NamedTuple):
     params: Params
 
 
-def lbfgs_agent(classification: bool,
-                objective_fn: ObjectiveFn,
-                model_fn: ModelFn = lambda mu, x: x @ mu,
-                has_aux: bool = False,
-                maxiter: int = 500,
-                tol: float = 1e-3,
-                condition: str = "strong-wolfe",
-                maxls: int = 15,
-                decrease_factor: float = 0.8,
-                increase_factor: float = 1.5,
-                history_size: int = 10,
-                use_gamma: bool = True,
-                implicit_diff: bool = True,
-                implicit_diff_solve: Optional[Callable] = None,
-                jit: AutoOrBoolean = "auto",
-                unroll: AutoOrBoolean = "auto",
-                verbose: bool = False,
-                buffer_size: int = jnp.inf,
-                threshold: int = 1):
-    '''
-    https://github.com/google/jaxopt/blob/53b539e6c5cee4c52262ce17d4601839422ffe87/jaxopt/_src/lbfgs.py#L148
-    Attributes:
-        fun: a smooth function of the form ``fun(x, *args, **kwargs)``.
-        has_aux: whether function fun outputs one (False) or more values (True).
-        When True it will be assumed by default that fun(...)[0] is the objective.
-        maxiter: maximum number of proximal gradient descent iterations.
-        tol: tolerance of the stopping criterion.
-        maxls: maximum number of iterations to use in the line search.
-        decrease_factor: factor by which to decrease the stepsize during line search
-        (default: 0.8).
-        increase_factor: factor by which to increase the stepsize during line search
-        (default: 1.5).
-        history_size: size of the memory to use.
-        use_gamma: whether to initialize the inverse Hessian approximation with
-        gamma * I, see 'Numerical Optimization', equation (7.20).
-        implicit_diff: whether to enable implicit diff or autodiff of unrolled
-        iterations.
-        implicit_diff_solve: the linear system solver to use.
-        jit: whether to JIT-compile the optimization loop (default: "auto").
-        unroll: whether to unroll the optimization loop (default: "auto").
-        verbose: whether to print error on every iteration or not.
-        Warning: verbose=True will automatically disable jit.
-    Reference:
-        Jorge Nocedal and Stephen Wright.
-        Numerical Optimization, second edition.
-        Algorithm 7.5 (page 179).
-    '''
+class LBFGSAgent(Agent):
 
-    partial_objective_fn = partial(objective_fn,
-                                   model_fn=model_fn)
+    def __init__(self,
+                 objective_fn: ObjectiveFn,
+                 model_fn: ModelFn = lambda mu, x: x @ mu,
+                 has_aux: bool = False,
+                 maxiter: int = 500,
+                 tol: float = 1e-3,
+                 condition: str = "strong-wolfe",
+                 maxls: int = 15,
+                 decrease_factor: float = 0.8,
+                 increase_factor: float = 1.5,
+                 history_size: int = 10,
+                 use_gamma: bool = True,
+                 implicit_diff: bool = True,
+                 implicit_diff_solve: Optional[Callable] = None,
+                 jit: AutoOrBoolean = "auto",
+                 unroll: AutoOrBoolean = "auto",
+                 verbose: bool = False,
+                 buffer_size: int = jnp.inf,
+                 threshold: int = 1,
+                 obs_noise=0.1,
+                 is_classifier: bool = False):
+        '''
+        https://github.com/google/jaxopt/blob/53b539e6c5cee4c52262ce17d4601839422ffe87/jaxopt/_src/lbfgs.py#L148
+        Attributes:
+            fun: a smooth function of the form ``fun(x, *args, **kwargs)``.
+            has_aux: whether function fun outputs one (False) or more values (True).
+            When True it will be assumed by default that fun(...)[0] is the objective.
+            maxiter: maximum number of proximal gradient descent iterations.
+            tol: tolerance of the stopping criterion.
+            maxls: maximum number of iterations to use in the line search.
+            decrease_factor: factor by which to decrease the stepsize during line search
+            (default: 0.8).
+            increase_factor: factor by which to increase the stepsize during line search
+            (default: 1.5).
+            history_size: size of the memory to use.
+            use_gamma: whether to initialize the inverse Hessian approximation with
+            gamma * I, see 'Numerical Optimization', equation (7.20).
+            implicit_diff: whether to enable implicit diff or autodiff of unrolled
+            iterations.
+            implicit_diff_solve: the linear system solver to use.
+            jit: whether to JIT-compile the optimization loop (default: "auto").
+            unroll: whether to unroll the optimization loop (default: "auto").
+            verbose: whether to print error on every iteration or not.
+            Warning: verbose=True will automatically disable jit.
+        Reference:
+            Jorge Nocedal and Stephen Wright.
+            Numerical Optimization, second edition.
+            Algorithm 7.5 (page 179).
+        '''
+        super(LBFGSAgent, self).__init__(is_classifier)
+        partial_objective_fn = partial(objective_fn,
+                                       model_fn=model_fn)
 
-    assert threshold <= buffer_size
+        assert threshold <= buffer_size
 
-    memory = Memory(buffer_size)
+        self.memory = Memory(buffer_size)
+        self.model_fn = model_fn
+        self.lbfgs = LBFGS(partial_objective_fn,
+                           has_aux,
+                           maxiter,
+                           tol,
+                           condition,
+                           maxls,
+                           decrease_factor,
+                           increase_factor,
+                           history_size,
+                           use_gamma,
+                           implicit_diff,
+                           implicit_diff_solve,
+                           jit,
+                           unroll,
+                           verbose)
+        self.buffer_size = buffer_size
+        self.threshold = threshold
 
-    lbfgs = LBFGS(partial_objective_fn,
-                  has_aux,
-                  maxiter,
-                  tol,
-                  condition,
-                  maxls,
-                  decrease_factor,
-                  increase_factor,
-                  history_size,
-                  use_gamma,
-                  implicit_diff,
-                  implicit_diff_solve,
-                  jit,
-                  unroll,
-                  verbose)
-
-    def init_state(params: Params):
+    def init_state(self,
+                   params: Params):
         return BeliefState(params)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
-        params, info = lbfgs.run(belief.params,
-                                 inputs=x_,
-                                 outputs=y_)
+        params, info = self.lbfgs.run(belief.params,
+                                      inputs=x_,
+                                      outputs=y_)
         return BeliefState(params), info
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = model_fn(params, x)
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         return belief.params
-
-    return Agent(classification, init_state, update, apply, sample_params)

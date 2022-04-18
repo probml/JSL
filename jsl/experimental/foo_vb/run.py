@@ -80,7 +80,7 @@ def eval_step(model, pytrees, data, target, train_mc_iters):
     def monte_carlo_step(weights, phi_key):
         phi = foo_vb_lib.gen_phi(phi_key, weights)
         params = foo_vb_lib.randomize_weights(m, a, b, phi)
-        output = model.apply(tree_map(jnp.transpose, params), data)
+        output = model._apply(tree_map(jnp.transpose, params), data)
         # get the index of the max log-probability
         pred = jnp.argmax(output, axis=1)
         return weights, jnp.sum(pred == target)
@@ -98,7 +98,7 @@ def train_continuous_mnist(key, model, train_loader,
     pytrees = init_step(key, model, image_size, config)
     criterion = partial(foo_vb_lib.cross_entropy_loss,
                         num_classes=num_classes,
-                        predict_fn=model.apply)
+                        predict_fn=model._apply)
 
     grad_fn = value_and_grad(criterion)
 
@@ -151,7 +151,7 @@ def train_multiple_tasks(key, model, train_loader,
     init_key, key = random.split(key)
     pytrees = init_step(key, model, config)
     criterion = partial(foo_vb_lib.cross_entropy_loss,
-                        num_classes=num_classes, predict_fn=model.apply)
+                        num_classes=num_classes, predict_fn=model._apply)
 
     grad_fn = value_and_grad(criterion)
 

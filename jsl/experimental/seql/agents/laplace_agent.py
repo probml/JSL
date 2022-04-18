@@ -43,53 +43,66 @@ class EnergyFn(typing_extensions.Protocol):
         ...
 
 
-def laplace_agent(classification: bool,
-                  solver: JaxOptSolver,
-                  energy_fn: EnergyFn,
-                  model_fn: ModelFn,
-                  obs_noise: float = 0.01,
-                  threshold: int = 1,
-                  buffer_size: int = 0):
-    assert threshold <= buffer_size
+class LaplaceAgent(Agent):
 
-    memory = Memory(buffer_size)
+    def __init__(self,
+                 solver: JaxOptSolver,
+                 energy_fn: EnergyFn,
+                 model_fn: ModelFn,
+                 obs_noise: float = 0.01,
+                 threshold: int = 1,
+                 buffer_size: int = 0,
+                 is_classifier: bool = False):
+        super(LaplaceAgent, self).__init__(is_classifier)
 
-    def init_state(mu: chex.Array,
+        assert threshold <= buffer_size
+
+        self.memory = Memory(buffer_size)
+        self.solver = solver
+        self.energy_fn = energy_fn
+        self.model_fn = model_fn
+        self.obs_noise = obs_noise
+        self.threshold = threshold
+        self.buffer_size = buffer_size
+
+    def init_state(self,
+                   mu: chex.Array,
                    Sigma: Optional[chex.Array] = None):
         return BeliefState(mu, Sigma)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
-        params, info = solver.run(belief.mu, inputs=x_, outputs=y_)
-        partial_energy_fn = partial(energy_fn,
+        params, info = self.solver.run(belief.mu, inputs=x_, outputs=y_)
+        partial_energy_fn = partial(self.energy_fn,
                                     inputs=x_,
                                     outputs=y_)
 
         Sigma = hessian(partial_energy_fn)(params)
         return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = model_fn(params, x)
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
-        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
+        mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
+                                                       Sigma)
         theta = mvn.sample(seed=key, sample_shape=mu.shape)
         return theta
-
-    return Agent(classification, init_state, update, apply, sample_params)

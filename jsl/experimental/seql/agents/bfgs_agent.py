@@ -1,4 +1,5 @@
 import jax.numpy as jnp
+from jax import lax
 
 from jaxopt import ScipyMinimize
 
@@ -54,54 +55,66 @@ class Info(NamedTuple):
     iter_num: int = 0
 
 
-def bfgs_agent(classification: bool,
-               objective_fn: ObjectiveFn = mse,
-               model_fn: ModelFn = lambda mu, x: x @ mu,
-               tol: Optional[float] = None,
-               options: Optional[Dict[str, Any]] = None,
-               obs_noise: float = 0.01,
-               buffer_size: int = jnp.inf,
-               threshold: int = 1):
-    partial_objective_fn = partial(objective_fn,
-                                   model_fn=model_fn)
+class BFGSAgent(Agent):
 
-    bfgs = ScipyMinimize(fun=partial_objective_fn,
-                         method="BFGS",
-                         tol=tol,
-                         options=options)
-    assert threshold <= buffer_size
+    def __init__(self,
+                 objective_fn: ObjectiveFn = mse,
+                 model_fn: ModelFn = lambda mu, x: x @ mu,
+                 tol: Optional[float] = None,
+                 options: Optional[Dict[str, Any]] = None,
+                 threshold: int = 1,
+                 buffer_size: int = jnp.inf,
+                 obs_noise: float = 0.01,
+                 is_classifier: bool = False):
+        super(BFGSAgent, self).__init__(is_classifier)
+        self.partial_objective_fn = partial(objective_fn,
+                                            model_fn=model_fn)
 
-    memory = Memory(buffer_size)
+        self.bfgs = ScipyMinimize(fun=self.partial_objective_fn,
+                                  method="BFGS",
+                                  tol=tol,
+                                  options=options)
+        assert threshold <= buffer_size
 
-    def init_state(x: chex.Array):
+        self.memory = Memory(buffer_size)
+        self.objective_fn = objective_fn
+        self.model_fn = model_fn
+        self.tol = tol
+        self.options = options
+        self.threshold = threshold
+        self.buffer_size = buffer_size
+        self.obs_noise = obs_noise
+
+    def init_state(self,
+                   x: chex.Array):
         return BeliefState(x)
 
-    def update(key: chex.PRNGKey,
+    def update(self,
+               key: chex.PRNGKey,
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        assert buffer_size >= len(x)
-        x_, y_ = memory.update(x, y)
+        assert self.buffer_size >= len(x)
+        x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < threshold:
+        if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, Info()
 
-        params, info = bfgs.run(belief.params,
-                                inputs=x_,
-                                outputs=y_)
+        params, info = self.bfgs.run(belief.params,
+                                     inputs=x_,
+                                     outputs=y_)
         return BeliefState(params), info
 
-    def apply(params: chex.ArrayTree,
-              x: chex.Array):
+    def get_posterior_cov(self,
+                          belief: BeliefState,
+                          x: chex.Array):
         n = len(x)
-        predictions = model_fn(params, x)
-        predictions = predictions.reshape((n, -1))
+        posterior_cov = jnp.eye(n) * self.obs_noise
+        chex.assert_shape(posterior_cov, [n, n])
+        return posterior_cov
 
-        return predictions
-
-    def sample_params(key: chex.PRNGKey,
+    def sample_params(self,
+                      key: chex.PRNGKey,
                       belief: BeliefState):
         return belief.params
-
-    return Agent(classification, init_state, update, apply, sample_params)
