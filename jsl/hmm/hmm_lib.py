@@ -112,7 +112,7 @@ def hmm_forwards_filtering_backwards_sampling_jax(params, obs_seq, seed):
         (t, post_state) = carry
 
         ffbs_dist_t = normalize(trans_mat * alpha[t])[0]
-        logits = logit(ffbs_dist_t[post_state, :])
+        logits = logit(ffbs_dist_t[:, post_state])
         state = jax.random.categorical(key, logits=logits.flatten(), shape=(1,))
         return (t - 1, state), state
 
