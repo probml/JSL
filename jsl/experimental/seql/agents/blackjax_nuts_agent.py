@@ -49,9 +49,9 @@ class Info(NamedTuple):
 class NutsState(NamedTuple):
     # https://github.com/blackjax-devs/blackjax/blob/fd83abf6ce16f2c420c76772ff2623a7ee6b1fe5/blackjax/mcmc/integrators.py#L12
     position: chex.ArrayTree
-    potential_energy: chex.ArrayTree = None
+    momentum: chex.ArrayTree = None
+    potential_energy: float = None
     potential_energy_grad: chex.ArrayTree = None
-    potential_fn: Callable = None
 
 
 def inference_loop(rng_key, kernel, initial_state, num_samples):
@@ -92,6 +92,9 @@ class BlackJaxNutsAgent(Agent):
         self.nwarmup = nwarmup
         self.nlast = nlast
         self.nsamples = nsamples
+        self.obs_noise = obs_noise
+        self.buffer_size = buffer_size
+        self.threshold = threshold
 
     def init_state(self,
                    initial_position: Params):
@@ -141,44 +144,19 @@ class BlackJaxNutsAgent(Agent):
         belief_state = BeliefState(tree_map(lambda x: jnp.mean(x, axis=0), states),
                                    step_size,
                                    inverse_mass_matrix,
-                                   tree_map(lambda x: x[-self.nlast:], states),
-                                   partial_potential_fn)
+                                   tree_map(lambda x: x[-self.nlast:], states))
         return belief_state, Info()
-
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-
-        def get_predictions(samples):
-            flat_tree, pytree_def = tree_flatten(samples)
-
-            def _predict(*args):
-                pytree = tree_unflatten(pytree_def, args[0])
-
-                return self.model_fn(pytree, x)
-
-            return vmap(_predict)(flat_tree)
-
-        predictions = get_predictions(belief.samples.position)
-        posterior_cov = jnp.diag(jnp.power(jnp.std(predictions, axis=0),
-                                           2)
-                                 )
-        n = len(x)
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
 
     def sample_params(self,
                       key: chex.PRNGKey,
                       belief: BeliefState):
-
-        if belief.potential_fn is None:
-            return belief.state.position
+        potential_fn = lambda params: belief.state.potential_energy
 
         state = nuts.new_state(belief.state.position,
-                               belief.potential_fn)
+                               potential_fn)
 
         # Inference
-        nuts_kernel = jit(nuts.kernel(belief.potential_fn,
+        nuts_kernel = jit(nuts.kernel(potential_fn,
                                       belief.step_size,
                                       belief.inverse_mass_matrix))
 

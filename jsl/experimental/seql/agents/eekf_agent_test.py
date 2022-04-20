@@ -1,74 +1,146 @@
-"""Tests for jsl.sent.agents.eekf"""
+"""Tests for jsl.sent.agents.eekf_agent"""
 import jax.numpy as jnp
-from jax.nn import sigmoid
+from jax import random, nn
+
+import chex
+
+import itertools
 
 from absl.testing import absltest
+from absl.testing import parameterized
 
+from jsl.experimental.seql.agents.eekf_agent import EEKFAgent
 from jsl.nlds.base import NLDS
-from jsl.nlds.extended_kalman_filter import filter
-from jsl.experimental.seql.utils import train
-from jsl.experimental.seql.experiments.logreg_eekf_demo import make_biclusters_data_environment
-from jsl.experimental.seql.agents.eekf_agent import eekf
-
-mean, cov = None, None
 
 
-def callback_fn(**kwargs):
-    global mean, cov
+def fz(x): return x
 
-    mu_hist = kwargs["info"].mu_hist
-    Sigma_hist = kwargs["info"].Sigma_hist
-
-    if mean is not None:
-        mean = jnp.vstack([mean, mu_hist])
-        cov = jnp.vstack([cov, Sigma_hist])
-    else:
-        mean = mu_hist
-        cov = Sigma_hist
-
-
-def fz(x):
-    return x
 
 def fx(w, x):
-    return sigmoid(w[None, :] @ x)
-
-def Rt(w, x):
-    return (sigmoid(w @ x) * (1 - sigmoid(w @ x)))[None, None]
+    return (x @ w)[None, ...]
 
 
-class EEKFTest(absltest.TestCase):
+def Rt(w, x): return (x @ w * (1 - x @ w))[None, None]
 
-    def test_eekf(self):
-        train_batch_size = 1
-        test_batch_size = 1
-        env = make_biclusters_data_environment(train_batch_size,
-                                               test_batch_size)
 
-        Phi = jnp.squeeze(env.X_train)
-        y = jnp.squeeze(env.y_train)
-        n_datapoints, input_dim = Phi.shape
+class EEKFAgentTest(parameterized.TestCase):
 
-        mu_t = jnp.zeros(input_dim)
+    @parameterized.parameters((4,))
+    def test_init_state(self,
+                        input_dim: int):
+        output_dim = 1
+
         Pt = jnp.eye(input_dim) * 0.0
         P0 = jnp.eye(input_dim) * 2.0
+        mu0 = jnp.zeros((input_dim,))
+        nlds = NLDS(fz, fx, Pt, Rt, mu0, P0)
 
-        ### EEKF Approximation
-        nlds = NLDS(fz, fx, Pt, Rt, mu_t, P0)
-        agent = eekf(nlds)
-        belief = agent.init_state(mu_t, P0)
-        unused_rewards = train(belief, agent, env, n_datapoints, callback_fn)
+        agent = EEKFAgent(nlds,
+                          is_classifier=True)
 
-        w_eekf_hist = mean
-        P_eekf_hist = cov
+        mu = jnp.zeros((input_dim, output_dim))
+        Sigma = jnp.eye(input_dim)
+        belief = agent.init_state(mu, Sigma)
 
-        _, eekf_hist = filter(nlds, mu_t, y,
-                              Phi, P0,
-                              return_params=["mean", "cov"])
-
-        assert jnp.allclose(w_eekf_hist, eekf_hist["mean"])
-        assert jnp.allclose(P_eekf_hist, eekf_hist["cov"])
+        chex.assert_shape(belief.mu, mu.shape)
+        chex.assert_shape(belief.Sigma, Sigma.shape)
 
 
-if __name__ == '__main__':
-    absltest.main()
+    @parameterized.parameters(itertools.product((0,),
+                                                (2,)))
+    def test_sample_params(self,
+                           seed: int,
+                           input_dim: int):
+        output_dim = 1
+
+        Pt = jnp.eye(input_dim) * 0.0
+        P0 = jnp.eye(input_dim) * 2.0
+        mu0 = jnp.zeros((input_dim,))
+        nlds = NLDS(fz, fx, Pt, Rt, mu0, P0)
+
+        agent = EEKFAgent(nlds,
+                          is_classifier=True)
+
+        mu = jnp.zeros((input_dim, output_dim))
+        Sigma = jnp.eye(input_dim) * 0.2
+
+        belief = agent.init_state(mu, Sigma)
+
+        key = random.PRNGKey(seed)
+        theta = agent.sample_params(key, belief)
+
+        chex.assert_shape(theta, (input_dim, output_dim))
+
+    @parameterized.parameters(itertools.product((0,),
+                                                (10,),
+                                                (2,),
+                                                (10,),
+                                                (5,)))
+    def test_posterior_predictive_sample(self,
+                                         seed: int,
+                                         ntrain: int,
+                                         input_dim: int,
+                                         nsamples_params: int,
+                                         nsamples_output: int,
+                                         ):
+        output_dim = 1
+
+        Pt = jnp.eye(input_dim) * 0.0
+        P0 = jnp.eye(input_dim) * 2.0
+        mu0 = jnp.zeros((input_dim,))
+        nlds = NLDS(fz, fx, Pt, Rt, mu0, P0)
+
+        agent = EEKFAgent(nlds,
+                          is_classifier=True)
+
+        mu = jnp.zeros((input_dim, output_dim))
+        Sigma = jnp.eye(input_dim) * 0.2
+
+        belief = agent.init_state(mu, Sigma)
+
+        key = random.PRNGKey(seed)
+        x_key, ppd_key = random.split(key)
+
+        x = random.normal(x_key, shape=(ntrain, input_dim))
+        samples = agent.posterior_predictive_sample(key, belief, x, nsamples_params, nsamples_output)
+        chex.assert_shape(samples, (nsamples_params, ntrain, nsamples_output, output_dim))
+
+    @parameterized.parameters(itertools.product((0,),
+                                                (5,),
+                                                (2,),
+                                                (10,)))
+    def test_logprob_given_belief(self,
+                                  seed: int,
+                                  ntrain: int,
+                                  input_dim: int,
+                                  nsamples_params: int
+                                  ):
+        output_dim = 1
+
+        Pt = jnp.eye(input_dim) * 0.0
+        P0 = jnp.eye(input_dim) * 2.0
+        mu0 = jnp.zeros((input_dim,))
+        nlds = NLDS(fz, fx, Pt, Rt, mu0, P0)
+
+        agent = EEKFAgent(nlds,
+                          is_classifier=True)
+
+        mu = jnp.zeros((input_dim, output_dim))
+        Sigma = jnp.eye(input_dim) * 0.2
+
+        belief = agent.init_state(mu, Sigma)
+
+        key = random.PRNGKey(seed)
+        x_key, w_key, noise_key, logprob_key = random.split(key, 4)
+
+        x = random.normal(x_key, shape=(ntrain, input_dim))
+        w = random.normal(w_key, shape=(input_dim, output_dim))
+        y = nn.softmax(x @ w + random.normal(noise_key, (ntrain, output_dim)), axis=-1)
+
+        samples = agent.logprob_given_belief(logprob_key, belief, x, y, nsamples_params)
+        chex.assert_shape(samples, (ntrain, output_dim))
+        assert jnp.any(jnp.isinf(samples)) == False
+        assert jnp.any(jnp.isnan(samples)) == False
+
+    if __name__ == '__main__':
+        absltest.main()

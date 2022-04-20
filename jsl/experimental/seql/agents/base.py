@@ -1,5 +1,8 @@
 import jax.numpy as jnp
-from jax import nn, vmap, random
+from jax import nn, vmap, random, lax
+from jax.scipy.special import logsumexp
+
+import distrax
 
 import chex
 from typing import NamedTuple, Tuple, Callable
@@ -29,6 +32,11 @@ class Agent:
                  is_classifier: bool):
         self.is_classifier = is_classifier
 
+        if is_classifier:
+            self.predictive_distribution_given_params = self.predict_given_params_classification
+        else:
+            self.predictive_distribution_given_params = self.predict_given_params_regression
+
     def update(self,
                key: chex.PRNGKey,
                belief: BeliefState,
@@ -36,76 +44,125 @@ class Agent:
                y: chex.Array) -> Tuple[BeliefState, Info]:
         pass
 
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        pass
-
     def sample_params(self,
                       key: chex.PRNGKey,
                       belief: BeliefState) -> chex.Array:
         pass
 
-    def _apply(self,
-               params: chex.ArrayTree,
-               x: chex.Array):
-        n = len(x)
-        print("params", params.shape)
-        print("x", x.shape)
-        predictions = self.model_fn(params, x)
-        #predictions = predictions.reshape((n, -1))
+    def predict_given_params_regression(self,
+                                        params: chex.ArrayTree,
+                                        x: chex.Array):
+        # regression with C outputs (independent)
 
-        return predictions
+        # n test examples, dimensionality of input
 
-    def predict_probs(self,
-                      key: chex.PRNGKey,
-                      belief: BeliefState,
-                      x: chex.Array,
-                      nsamples: int) -> chex.Array:
-        # p(n, c) = integral_theta Categorical(y=c|xn, theta) p(theta)
-        # approx 1/S sum_s Cat(y=c | xn, theta(s))
+        mu = self.model_fn(params, x)
 
-        def get_probs_per_sample(key: chex.PRNGKey,
-                                 x: chex.Array) -> chex.Array:
-            theta = self.sample_params(key, belief)
+        # n test examples, dimensionality of output
+        N, C = jnp.shape(mu)
+        pred_dist = distrax.MultivariateNormalDiag(mu,
+                                                   self.obs_noise * jnp.ones((N, C)))
 
-            return nn.softmax(self._apply(params=theta, x=x), axis=-1)
+        return pred_dist
 
-        def get_probs(x: chex.Array) -> chex.Array:
-            keys = random.split(key, nsamples)
-            probs_per_sample = vmap(get_probs_per_sample, in_axes=(0, None))(keys, x)
-            return jnp.mean(probs_per_sample, axis=0)
+    def predict_given_params_classification(self,
+                                            params: chex.ArrayTree,
+                                            x: chex.Array):
+        # classifier with C outputs (one hot)
+        # n test examples, dimensionality of input
+        logits = self.model_fn(params, x)
+        probs = nn.softmax(logits, axis=-1)  # normalize over C
+        pred_dist = distrax.Categorical(probs=probs)
+        return pred_dist
 
-        probs = vmap(get_probs)(x)
+    def posterior_predictive_sample(self,
+                                    key: chex.PRNGKey,
+                                    belief: BeliefState,
+                                    x: chex.Array,
+                                    nsamples_params: int,
+                                    nsamples_output: int) -> chex.Array:
+        # X: N * D, Y : N * M * C, where M = nsamples_outout, C  = |Y|
 
-        return probs
+        def sample_from_predictive_distribution(key, theta, x):
+            inputs = x.reshape((1, -1))
+            pred_dist = self.predictive_distribution_given_params(theta, inputs)
+            samples = pred_dist.sample(seed=key,
+                                       sample_shape=(nsamples_output,))
+            samples = samples.reshape((nsamples_output, -1))
+            return samples
 
-    def predict_gauss(self,
-                      key: chex.PRNGKey,
-                      belief: BeliefState,
-                      x: chex.Array,
-                      nsamples: int) -> Tuple[chex.Array, chex.Array]:
-        # p(y|xn) = integral_theta Gauss(y|mu(xn, theta), sigma(xn,theta)) p(theta)
-        # appprox Gauss(y | m_n, v_n)
-        # m_n = E[Y|xn] = E_theta[ E[Y|xn, theta] ] ~ 1/S sum_s mu(xn, theta(s))
-        # m2_n = E[Y^2 | xn ]  E_theta[ E[Y^2|xn, theta] ]  ~ m_n^2
-        # v_n = V[Y|xn ]  = E[Y^2 | xn]]  - (E[Y|xn])^2 ~ m_n - m_n^2
-        print("ınit x", x.shape)
-        def get_m_and_v_per_sample(key: chex.PRNGKey,
-                                   x: chex.Array) -> chex.Array:
-            theta = self.sample_params(key, belief)
-            m = self._apply(params=theta, x=x)
-            print("m", m.shape)
-            v = self.get_posterior_cov(belief=belief,
-                                       x=x)
-            print("v", v.shape)
-            return m, v
+        def sample_from_belief(key):
+            param_key, predictive_key = random.split(key, 2)
+            theta = self.sample_params(param_key, belief)
+            nsamples_input = len(x)
+            keys = random.split(predictive_key, nsamples_input)
+            vsample = vmap(sample_from_predictive_distribution,
+                           in_axes=(0, None, 0))
+            samples = vsample(keys, theta, x)
+            return samples
 
-        def get_m_and_v(x: chex.Array) -> Tuple[chex.Array, chex.Array]:
-            keys = random.split(key, nsamples)
-            vsample = vmap(get_m_and_v_per_sample, in_axes=(0, None))
-            m_per_sample, v_per_sample = vsample(keys, x)
-            return gauss_moment_matching(m_per_sample)
+        keys = random.split(key, nsamples_params)
+        return vmap(sample_from_belief)(keys)
 
-        m, v = vmap(get_m_and_v)(x)
-        return m, v
+    def logprob_given_belief(self,
+                             key: chex.PRNGKey,
+                             belief: BeliefState,
+                             X: chex.Array,
+                             Y: chex.Array,
+                             nsamples_params: int) -> chex.Array:
+        # X: N*D, Y: N*C, returns N*1 (N=batch size, C=event shape)
+        # P(s,n) = p(y(n,:) | x(n,:), theta(s)) = sum_c p(y(n,c) | x(n,:), theta(s))
+        # P(n) = mean_s P(s,n)
+        # Returns L(n) = log P(n)
+
+        def logprob_fn(key):
+            params_sample = self.sample_params(key, belief)
+            # distribution  over batch size N
+            pred_dist = self.predictive_distribution_given_params(params_sample, X)
+            logprobs = pred_dist.log_prob(Y).reshape(Y.shape)  # (N,1)
+            return logprobs
+
+        keys = random.split(key, nsamples_params)
+        logprobs = vmap(logprob_fn)(keys)
+        posterior_predictive_density = -jnp.log(nsamples_params)
+        posterior_predictive_density += logsumexp(logprobs, axis=0)
+        return posterior_predictive_density
+
+    def joint_logprob_given_belief(self,
+                                   key: chex.PRNGKey,
+                                   belief: BeliefState,
+                                   X: chex.Array,
+                                   Y: chex.Array,
+                                   nsamples_params: int):
+        # X: T*N*D, Y: T*N*C, T = tau = size of joint event
+        # P(t,s,n) = p(y(t,n,:) | x(t,n,:), theta(s))
+        # Pjoint(s,n) = prod_t P(t,s,n)
+        # Pavg(n) = mean_s Pjoint(s,n)
+        # L(n) = log(Pavg(n))
+
+        def logprob_fn(params_sample, X, Y):
+            pred_dist = self.predictive_distribution_given_params(params_sample, X)
+            logprobs = pred_dist.log_prob(Y)  # (N,1)
+            return logprobs
+
+        def logjoint_fn(key: chex.PRNGKey) -> float:
+            params_sample = self.sample_params(key, belief)
+            # distribution  over batch size N
+            vlogprob = vmap(logprob_fn, in_axes=(None, 0, 0))
+            logprobs = vlogprob(params_sample, X, Y)
+            return jnp.sum(logprobs, axis=0)
+
+        keys = random.split(key, nsamples_params)
+        logprobs_joint = vmap(logjoint_fn)(keys)
+
+        posterior_predictive_density = -jnp.log(nsamples_params)
+        posterior_predictive_density += logsumexp(logprobs_joint, axis=0)
+
+        return posterior_predictive_density
+
+    def posterior_predictive_mean(self, key, x) -> chex.Array:
+        return jnp.mean(self.posterior_predictive_samples(key, x))
+
+    def posterior_predictive_mean_and_var(self, key, x) -> chex.Array:
+        samples = self.posterior_predictive_samples(key, x)
+        return jnp.mean(samples), jnp.var(samples)

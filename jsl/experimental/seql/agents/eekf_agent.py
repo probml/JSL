@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import chex
 import distrax
 
-from typing import List
+from typing import List, Callable
 
 from jsl.experimental.seql.agents.base import Agent
 from jsl.nlds.base import NLDS
@@ -16,6 +16,7 @@ class EEKFAgent(Agent):
 
     def __init__(self,
                  nlds: NLDS,
+                 model_fn: Callable = lambda params, x: x @ params,
                  return_params: List[str] = ["mean", "cov"],
                  return_history: bool = False,
                  is_classifier: bool = True):
@@ -25,7 +26,7 @@ class EEKFAgent(Agent):
         self.nlds = nlds
         self.return_params = return_params
         self.return_history = return_history
-        self.model_fn = lambda params, x: x @ params
+        self.model_fn = model_fn
 
     def init_state(self,
                    mu: chex.Array,
@@ -47,18 +48,12 @@ class EEKFAgent(Agent):
 
         return BeliefState(mu, Sigma), Info()
 
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        n = len(x)
-        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
-
     def sample_params(self,
                       key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
-        mvn = distrax.MultivariateNormalFullCovariance(mu, Sigma)
-        theta = mvn.sample(seed=key, sample_shape=mu.shape)
+        mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
+                                                       Sigma)
+        theta = mvn.sample(seed=key)
+        theta = theta.reshape(mu.shape)
         return theta

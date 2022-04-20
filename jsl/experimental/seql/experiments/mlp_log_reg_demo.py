@@ -55,7 +55,9 @@ def callback_fn(agent, env, agent_name, **kwargs):
 
     inputs = env.X_test.reshape((-1, nfeatures))
     outputs = env.y_test.reshape((-1, out))
-    predictions, _ = agent.predict(belief, inputs)
+    theta = agent.sample_params(random.PRNGKey(0), belief)
+    print(theta.shape)
+    predictions = agent._apply(theta, inputs)
     loss = jnp.mean(jnp.power(predictions - outputs, 2))
     losses.append(loss)
 
@@ -269,9 +271,9 @@ def main():
         return model_fn(params, x)
 
     Q = jnp.eye(flat_params.size) * 1e-4  # parameters do not change
-    R = jnp.eye(1) * obs_noise
+    R = jnp.eye(2) * obs_noise
     nlds = NLDS(lambda x: x, fx, Q, R)
-    eekf = EEKFAgent(nlds, is_classifier=True)
+    eekf = EEKFAgent(nlds, fx, is_classifier=True)
 
     agents = {
         "eekf": eekf,

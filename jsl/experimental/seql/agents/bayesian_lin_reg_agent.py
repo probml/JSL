@@ -1,5 +1,4 @@
-from jax import config, random, vmap
-
+from jax import config
 from jsl.experimental.seql.agents.agent_utils import Memory
 
 config.update('jax_default_matmul_precision', 'float32')
@@ -44,6 +43,7 @@ class BayesianReg(Agent):
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array) -> Tuple[BeliefState, Info]:
+
         assert self.buffer_size >= len(x)
 
         x_, y_ = self.memory.update(x, y)
@@ -55,17 +55,9 @@ class BayesianReg(Agent):
 
         return BeliefState(mu, Sigma), Info()
 
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        n = len(x)
-        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
-
     def sample_params(self,
                       key: chex.PRNGKey,
-                      belief: BeliefState):
+                      belief: BeliefState)-> chex.ArrayTree:
         mu, Sigma = belief.mu, belief.Sigma
         mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
                                                        Sigma)

@@ -1,5 +1,4 @@
 import jax.numpy as jnp
-from jax import lax
 
 from jaxopt import ScipyMinimize
 
@@ -35,8 +34,6 @@ class ObjectiveFn(typing_extensions.Protocol):
 
 class BeliefState(NamedTuple):
     params: Params
-    Sigma: chex.Array
-
 
 class Info(NamedTuple):
     # https://github.com/google/jaxopt/blob/73a7c48e8dbde912cecd37f3d90401e8d87d574e/jaxopt/_src/scipy_wrappers.py#L47
@@ -62,7 +59,7 @@ class BFGSAgent(Agent):
                  model_fn: ModelFn = lambda mu, x: x @ mu,
                  tol: Optional[float] = None,
                  options: Optional[Dict[str, Any]] = None,
-                 threshold: int = 1,
+                 min_n_samples: int = 1,
                  buffer_size: int = jnp.inf,
                  obs_noise: float = 0.01,
                  is_classifier: bool = False):
@@ -74,14 +71,14 @@ class BFGSAgent(Agent):
                                   method="BFGS",
                                   tol=tol,
                                   options=options)
-        assert threshold <= buffer_size
+        assert min_n_samples <= buffer_size
 
         self.memory = Memory(buffer_size)
         self.objective_fn = objective_fn
         self.model_fn = model_fn
         self.tol = tol
         self.options = options
-        self.threshold = threshold
+        self.threshold = min_n_samples
         self.buffer_size = buffer_size
         self.obs_noise = obs_noise
 

@@ -1,4 +1,4 @@
-"""Tests for jsl.sent.agents.kf_agent"""
+"""Tests for jsl.sent.agents.bfgs_agent"""
 import jax.numpy as jnp
 from jax import random
 
@@ -9,42 +9,44 @@ import itertools
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from jsl.experimental.seql.agents.kf_agent import KalmanFilterRegAgent
+from jsl.experimental.seql.agents.bfgs_agent import BFGSAgent
 
 
-class KalmanFilterTest(parameterized.TestCase):
+class BFGSTest(parameterized.TestCase):
 
-    @parameterized.parameters(itertools.product((4,), (0.1,)))
+    @parameterized.parameters(itertools.product((4,), (5,), (0.1,)))
     def test_init_state(self,
                         input_dim: int,
+                        buffer_size: int,
                         obs_noise: float):
         output_dim = 1
-        agent = KalmanFilterRegAgent(obs_noise)
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim)
-        belief = agent.init_state(mu, Sigma)
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        belief = agent.init_state(params)
 
-        chex.assert_shape(belief.mu, mu.shape)
-        chex.assert_shape(belief.Sigma, Sigma.shape)
+        chex.assert_shape(belief.params, params.shape)
 
         assert agent.obs_noise == obs_noise
+        assert agent.buffer_size == buffer_size
 
     @parameterized.parameters(itertools.product((0,),
                                                 (10,),
                                                 (2,),
+                                                (10,),
                                                 (0.1,)))
     def test_update(self,
                     seed: int,
                     ntrain: int,
                     input_dim: int,
+                    buffer_size: int,
                     obs_noise: float):
         output_dim = 1
 
-        agent = KalmanFilterRegAgent(obs_noise)
-
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim)
-        initial_belief = agent.init_state(mu, Sigma)
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        initial_belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, w_key, noise_key, update_key = random.split(key, 4)
@@ -55,24 +57,46 @@ class KalmanFilterTest(parameterized.TestCase):
 
         belief, info = agent.update(update_key, initial_belief, x, y)
 
-        chex.assert_shape(belief.mu, (input_dim, output_dim))
-        chex.assert_shape(belief.Sigma, (input_dim, input_dim))
+        chex.assert_shape(belief.params, (input_dim, output_dim))
 
     @parameterized.parameters(itertools.product((0,),
                                                 (2,),
+                                                (10,),
                                                 (0.1,)))
     def test_sample_params(self,
                            seed: int,
                            input_dim: int,
+                           buffer_size: int,
                            obs_noise: float):
         output_dim = 1
 
-        agent = KalmanFilterRegAgent(obs_noise)
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
 
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
+        belief = agent.init_state(params)
 
-        belief = agent.init_state(mu, Sigma)
+        key = random.PRNGKey(seed)
+        theta = agent.sample_params(key, belief)
+
+        chex.assert_shape(theta, (input_dim, output_dim))
+
+    @parameterized.parameters(itertools.product((0,),
+                                                (2,),
+                                                (10,),
+                                                (0.1,)))
+    def test_sample_params(self,
+                           seed: int,
+                           input_dim: int,
+                           buffer_size: int,
+                           obs_noise: float):
+        output_dim = 1
+
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         theta = agent.sample_params(key, belief)
@@ -84,6 +108,7 @@ class KalmanFilterTest(parameterized.TestCase):
                                                 (2,),
                                                 (10,),
                                                 (5,),
+                                                (10,),
                                                 (0.1,)))
     def test_posterior_predictive_sample(self,
                                          seed: int,
@@ -91,16 +116,15 @@ class KalmanFilterTest(parameterized.TestCase):
                                          input_dim: int,
                                          nsamples_params: int,
                                          nsamples_output: int,
+                                         buffer_size: int,
                                          obs_noise: float,
                                          ):
         output_dim = 1
 
-        agent = KalmanFilterRegAgent(obs_noise)
-
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
-
-        belief = agent.init_state(mu, Sigma)
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, ppd_key = random.split(key)
@@ -113,22 +137,23 @@ class KalmanFilterTest(parameterized.TestCase):
                                                 (5,),
                                                 (2,),
                                                 (10,),
+                                                (10,),
                                                 (0.1,)))
     def test_logprob_given_belief(self,
                                   seed: int,
                                   ntrain: int,
                                   input_dim: int,
                                   nsamples_params: int,
+                                  buffer_size: int,
                                   obs_noise: float,
                                   ):
         output_dim = 1
 
-        agent = KalmanFilterRegAgent(obs_noise)
+        agent = BFGSAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
 
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
-
-        belief = agent.init_state(mu, Sigma)
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, w_key, noise_key, logprob_key = random.split(key, 4)

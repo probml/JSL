@@ -75,28 +75,24 @@ class LaplaceAgent(Agent):
                belief: BeliefState,
                x: chex.Array,
                y: chex.Array):
-        assert self.buffer_size >= len(x)
+
         x_, y_ = self.memory.update(x, y)
 
         if len(x_) < self.threshold:
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
-        params, info = self.solver.run(belief.mu, inputs=x_, outputs=y_)
+        params, info = self.solver.run(belief.mu,
+                                       inputs=x_,
+                                       outputs=y_,
+                                       model_fn=self.model_fn)
         partial_energy_fn = partial(self.energy_fn,
                                     inputs=x_,
-                                    outputs=y_)
+                                    outputs=y_,
+                                    model_fn=self.model_fn)
 
         Sigma = hessian(partial_energy_fn)(params)
         return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
-
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        n = len(x)
-        posterior_cov = x @ belief.Sigma @ x.T + self.obs_noise * jnp.eye(n)
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
 
     def sample_params(self,
                       key: chex.PRNGKey,
