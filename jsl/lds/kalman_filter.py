@@ -1,24 +1,17 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
-
-
 from jax import config
 
 config.update('jax_default_matmul_precision', 'float32')
 
 import chex
-
 import jax.numpy as jnp
 from jax.random import multivariate_normal, split
 from jax.scipy.linalg import solve
-from jax import tree_map
-
-from jax import lax, vmap
-
+from jax import tree_map, lax, vmap
 from dataclasses import dataclass
 from functools import partial
 from typing import Union, Callable
-
 from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
@@ -28,9 +21,16 @@ tfd = tfp.distributions
 class LDS:
     """
     Implementation of the Kalman Filtering and Smoothing
-    procedure of a Linear Dynamical System with known parameters.
+    procedure of a Linear Dynamical System (LDS) with known parameters.
     This class exemplifies the use of Kalman Filtering assuming
     the model parameters are known.
+
+    The LDS evolves as follows:
+    x_t = A x_t-1 + w_t; w_t ~ N(0, Q)
+    y_t = C x_t + v_t; v_t ~ N(0, R)
+
+    with initial state x_0 ~ N(mu, Sigma)
+
     Parameters
     ----------
     A: array(state_size, state_size)
@@ -122,7 +122,7 @@ class LDS:
         zeros_obs = jnp.zeros(observation_size)
 
         system_noise = multivariate_normal(key_system_noise, zeros_state,
-                                         self.get_obs_mat_of(0), (timesteps, n_samples))
+                                           self.get_system_noise_of(0), (timesteps, n_samples))
         obs_noise = multivariate_normal(key_obs_noise, zeros_obs, R, (timesteps, n_samples))
 
         obs_t = jnp.einsum("ij,sj->si", self.get_obs_mat_of(0), state_t) + obs_noise[0]
@@ -145,6 +145,124 @@ class LDS:
             state_hist = state_hist[0, ...]
             obs_hist = obs_hist[0, ...]
         return state_hist, obs_hist
+
+
+def kalman_step(state, obs, params):
+    I = jnp.eye(len(params.mu))
+    mu, Sigma, t = state
+
+    # \Sigma_{t|t-1}
+    A = params.get_trans_mat_of(t)
+    Q = params.get_system_noise_of(t)
+
+    Sigma_cond = A @ Sigma @ A.T + Q
+
+    # \mu_{t |t-1} and xn|{n-1}
+    mu_cond = A @ mu
+
+    Ct = params.get_obs_mat_of(t)
+    R = params.get_observation_noise_of(t)
+    
+    St = Ct @ Sigma_cond @ Ct.T + R
+    Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
+
+    mu = mu_cond + Kt @ (obs - Ct @ mu_cond)
+
+    #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
+    tmp = (I - Kt @ Ct)
+    Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R @ Kt.T)
+
+    return (mu, Sigma, t+1), (mu, Sigma, mu_cond, Sigma_cond)
+
+
+def kalman_filter(params: LDS,
+                  x_hist: chex.Array,
+                  return_history: bool = True):
+    """
+    Compute the online version of the Kalman-Filter, i.e,
+    the one-step-ahead prediction for the hidden state or the
+    time update step
+
+    Parameters
+    ----------
+    params: LDS
+         Linear Dynamical System object
+    x_hist: array(timesteps, observation_size)
+    return_history: bool
+
+    Returns
+    -------
+    * array(timesteps, state_size):
+        Filtered means mut
+    * array(timesteps, state_size, state_size)
+        Filtered covariances Sigmat
+    * array(timesteps, state_size)
+        Filtered conditional means mut|t-1
+    * array(timesteps, state_size, state_size)
+        Filtered conditional covariances Sigmat|t-1
+    """
+    mu0, Sigma0 = params.mu, params.Sigma
+    initial_state = (mu0, Sigma0, 0)
+    kalman_step_run = partial(kalman_step, params=params)
+    (mun, Sigman, _), history = lax.scan(kalman_step_run, initial_state, x_hist)
+    if return_history:
+        return history
+    return mun, Sigman, None, None
+
+
+def filter(params: LDS,
+           x_hist: chex.Array,
+           return_history: bool = True):
+    """
+    Compute the online version of the Kalman-Filter, i.e,
+    the one-step-ahead prediction for the hidden state or the
+    time update step.
+    Note that x_hist can optionally be of dimensionality two,
+    This corresponds to different samples of the same underlying
+    Linear Dynamical System
+
+    Parameters
+    ----------
+    params: LDS
+         Linear Dynamical System object
+    x_hist: array(n_samples?, timesteps, observation_size)
+    return_history: bool
+    Returns
+    -------
+    * array(n_samples?, timesteps, state_size):
+        Filtered means mut
+    * array(n_samples?, timesteps, state_size, state_size)
+        Filtered covariances Sigmat
+    * array(n_samples?, timesteps, state_size)
+        Filtered conditional means mut|t-1
+    * array(n_samples?, timesteps, state_size, state_size)
+        Filtered conditional covariances Sigmat|t-1
+    """
+    has_one_sim = False
+    if x_hist.ndim == 2:
+        x_hist = x_hist[None, ...]
+        has_one_sim = True
+
+    kalman_map = vmap(partial(kalman_filter, return_history=return_history), (None, 0))
+    outputs = kalman_map(params, x_hist)
+
+    if has_one_sim and return_history:
+        outputs = tree_map(lambda x: x[0, ...], outputs)
+        return outputs
+
+    return outputs
+
+
+def smoother_step(state, elements, params):
+    mut_giv_T, Sigmat_giv_T, t = state
+    A = params.get_trans_mat_of(t)
+
+    mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
+
+    Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
+    mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
+    Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
+    return (mut_giv_T, Sigmat_giv_T,  t+1), (mut_giv_T, Sigmat_giv_T)
 
 
 def kalman_smoother(params: LDS,
@@ -179,139 +297,19 @@ def kalman_smoother(params: LDS,
     mut_giv_T = mu_hist[-1, :]
     Sigmat_giv_T = Sigma_hist[-1, :]
 
-    def smoother_step(state, elements):
-        mut_giv_T, Sigmat_giv_T, t= state
-        A = params.get_trans_mat_of(t)
-
-        mutt, Sigmatt, mut_cond_next, Sigmat_cond_next = elements
-
-        Jt = solve(Sigmat_cond_next, A @ Sigmatt, sym_pos=True).T
-        mut_giv_T = mutt + Jt @ (mut_giv_T - mut_cond_next)
-        Sigmat_giv_T = Sigmatt + Jt @ (Sigmat_giv_T - Sigmat_cond_next) @ Jt.T
-        return (mut_giv_T, Sigmat_giv_T,  t+1), (mut_giv_T, Sigmat_giv_T)
-
+    smoother_step_run = partial(smoother_step, params=params)
     elements = (mu_hist[-2::-1],
                 Sigma_hist[-2::-1, ...],
                 mu_cond_hist[1:][::-1, ...],
                 Sigma_cond_hist[1:][::-1, ...])
     initial_state = (mut_giv_T, Sigmat_giv_T, 0)
 
-    _, (mu_hist_smooth, Sigma_hist_smooth) = lax.scan(smoother_step, initial_state, elements)
+    _, (mu_hist_smooth, Sigma_hist_smooth) = lax.scan(smoother_step_run, initial_state, elements)
 
     mu_hist_smooth = jnp.concatenate([mu_hist_smooth[::-1, ...], mut_giv_T[None, ...]], axis=0)
     Sigma_hist_smooth = jnp.concatenate([Sigma_hist_smooth[::-1, ...], Sigmat_giv_T[None, ...]], axis=0)
 
     return mu_hist_smooth, Sigma_hist_smooth
-
-
-def kalman_filter(params: LDS, x_hist: chex.Array,
-                  return_history: bool = True):
-    """
-    Compute the online version of the Kalman-Filter, i.e,
-    the one-step-ahead prediction for the hidden state or the
-    time update step
-    Parameters
-    ----------
-    params: LDS
-         Linear Dynamical System object
-    x_hist: array(timesteps, observation_size)
-    return_history: bool
-    Returns
-    -------
-    * array(timesteps, state_size):
-        Filtered means mut
-    * array(timesteps, state_size, state_size)
-        Filtered covariances Sigmat
-    * array(timesteps, state_size)
-        Filtered conditional means mut|t-1
-    * array(timesteps, state_size, state_size)
-        Filtered conditional covariances Sigmat|t-1
-    """
-    A = params.get_trans_mat_of(0) 
-
-    state_size, _ = A.shape
-    I = jnp.eye(state_size)
-
-    def predict_step(mu, Sigma, t):
-        # \Sigma_{t|t-1}
-        A = params.get_trans_mat_of(t)
-        Q = params.get_system_noise_of(t)
-
-        Sigman_cond = A @ Sigma @ A.T + Q
-
-        # \mu_{t |t-1} and xn|{n-1}
-        mu_cond = A @ mu
-
-        return mu_cond, Sigman_cond
-
-    def kalman_step(state, obs):
-        mu, Sigma, t = state
-
-        mu_cond, Sigma_cond = predict_step(mu, Sigma, t)
-        Ct = params.get_obs_mat_of(t)
-        R = params.get_observation_noise_of(t)
-        
-        St = Ct @ Sigma_cond @ Ct.T + R
-        Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
-
-        et = obs - Ct @ mu_cond
-        mu = mu_cond + Kt @ et
-
-        #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
-        tmp = (I - Kt @ Ct)
-        Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R * Kt.T)
-
-        t = t + 1
-
-        return (mu, Sigma, t), (mu, Sigma, mu_cond, Sigma_cond)
-
-    mu0, Sigma0 = params.mu, params.Sigma
-    initial_state = (mu0, Sigma0, 0)
-    (mun, Sigman, _), history = lax.scan(kalman_step, initial_state, x_hist)
-    if return_history:
-        return history
-    return mun, Sigman, None, None
-
-
-def filter(params: LDS, x_hist: chex.Array,
-           return_history: bool = True):
-    """
-    Compute the online version of the Kalman-Filter, i.e,
-    the one-step-ahead prediction for the hidden state or the
-    time update step.
-    Note that x_hist can optionally be of dimensionality two,
-    This corresponds to different samples of the same underlying
-    Linear Dynamical System
-    Parameters
-    ----------
-    params: LDS
-         Linear Dynamical System object
-    x_hist: array(n_samples?, timesteps, observation_size)
-    return_history: bool
-    Returns
-    -------
-    * array(n_samples?, timesteps, state_size):
-        Filtered means mut
-    * array(n_samples?, timesteps, state_size, state_size)
-        Filtered covariances Sigmat
-    * array(n_samples?, timesteps, state_size)
-        Filtered conditional means mut|t-1
-    * array(n_samples?, timesteps, state_size, state_size)
-        Filtered conditional covariances Sigmat|t-1
-    """
-    has_one_sim = False
-    if x_hist.ndim == 2:
-        x_hist = x_hist[None, ...]
-        has_one_sim = True
-
-    kalman_map = vmap(partial(kalman_filter, return_history=return_history), (None, 0))
-    outputs = kalman_map(params, x_hist)
-
-    if has_one_sim and return_history:
-        outputs = tree_map(lambda x: x[0, ...], outputs)
-        return outputs
-
-    return outputs
 
 
 def smooth(params: LDS,
@@ -327,6 +325,7 @@ def smooth(params: LDS,
     Similarly, the covariance terms can optinally be of dimensionally three.
     This corresponds to different samples of the same underlying
     Linear Dynamical System
+
     Parameters
     ----------
     params: LDS
@@ -339,6 +338,7 @@ def smooth(params: LDS,
         Filtered conditional means mut|t-1
     Sigma_cond_hist: array(n_samples?, timesteps, state_size, state_size)
         Filtered conditional covariances Sigmat|t-1
+
     Returns
     -------
     * array(n_samples?, timesteps, state_size):
@@ -352,7 +352,8 @@ def smooth(params: LDS,
                                                              mu_cond_hist[None, ...], Sigma_cond_hist[None, ...]
         has_one_sim = True
     smoother_map = vmap(kalman_smoother, (None, 0, 0, 0, 0))
-    mu_hist_smooth, Sigma_hist_smooth = smoother_map(params, mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
+    mu_hist_smooth, Sigma_hist_smooth = smoother_map(params, mu_hist, Sigma_hist,
+                                                     mu_cond_hist, Sigma_cond_hist)
     if has_one_sim:
         mu_hist_smooth, Sigma_hist_smooth = mu_hist_smooth[0, ...], Sigma_hist_smooth[0, ...]
     return mu_hist_smooth, Sigma_hist_smooth
