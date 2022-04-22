@@ -26,7 +26,7 @@ import flax
 '''
 Hidden Markov Model class used in jax implementations of inference algorithms.
 
-The functions of optimizers expect that the type of its parameters 
+The functions of optimizers expect that the type of its parameters
 is pytree. So, they cannot work on a vanilla dataclass. To see more:
                 https://github.com/google/jax/issues/2371
 
@@ -65,6 +65,63 @@ def normalize(u, axis=0, eps=1e-15):
     c = u.sum(axis=axis)
     c = jnp.where(c == 0, 1, c)
     return u / c, c
+
+
+@jit
+def hmm_forwards_filtering_backwards_sampling_jax(params, obs_seq, seed):
+    '''
+    Samples a hidden state sequence accoding to the defined
+    hidden markov model and an observation, and give a sequence
+    of the hidden state with the length equal to an observation length.
+
+    Parameters
+    ----------
+    params : HMMJax
+        Hidden Markov Model
+
+    obs_seq: array(seq_len)
+        History of observable events
+
+    seed: array
+        Random key of shape (2,) and dtype uint32
+
+    Returns
+    -------
+    * array(seq_len,)
+        Hidden state sequence
+
+    * array(seq_len, n_hidden) :
+        All alpha values found for each sample
+    '''
+    seq_len = len(obs_seq)
+
+    # Calculate belief states by forwards filtering
+    _, alpha = hmm_forwards_jax(params, obs_seq, seq_len)
+    trans_mat, obs_mat, init_dist = params.trans_mat, params.obs_mat, params.init_dist
+
+    trans_mat = jnp.array(trans_mat)
+    obs_mat = jnp.array(obs_mat)
+    init_dist = jnp.array(init_dist)
+
+    # Generate random keys for drawing samples
+    rng_init, rng_state = jax.random.split(seed, 2)
+    state_keys = jax.random.split(rng_state, seq_len - 1)
+
+    # Backward sampling states from final state
+    def draw_state(carry, key):
+        (t, post_state) = carry
+
+        ffbs_dist_t = normalize(trans_mat * alpha[t])[0]
+        logits = logit(ffbs_dist_t[:, post_state])
+        state = jax.random.categorical(key, logits=logits.flatten(), shape=(1,))
+        return (t - 1, state), state
+
+    logits = logit(alpha[seq_len - 1])
+    final_state = jax.random.categorical(rng_init, logits=logits.flatten(), shape=(1,))
+    _, states = jax.lax.scan(draw_state, (seq_len - 2, final_state), state_keys)
+    states = jnp.flip(jnp.append(jnp.array([final_state]), states), axis=0)
+
+    return states, alpha
 
 
 @partial(jit, static_argnums=(1,))
