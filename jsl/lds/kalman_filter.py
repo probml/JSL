@@ -1,7 +1,5 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
-
-
 from jax import config
 
 config.update('jax_default_matmul_precision', 'float32')
@@ -149,25 +147,19 @@ class LDS:
         return state_hist, obs_hist
 
 
-def predict_step(state, params):
-    mu, Sigma, t = state
-    # \Sigma_{t|t-1}
-    A = params.get_trans_mat_of(t)
-    Q = params.get_system_noise_of(t)
-
-    Sigman_cond = A @ Sigma @ A.T + Q
-
-    # \mu_{t |t-1} and xn|{n-1}
-    mu_cond = A @ mu
-
-    return mu_cond, Sigman_cond
-
-
 def kalman_step(state, obs, params):
     I = jnp.eye(len(params.mu))
     mu, Sigma, t = state
 
-    mu_cond, Sigma_cond = predict_step(state, params)
+    # \Sigma_{t|t-1}
+    A = params.get_trans_mat_of(t)
+    Q = params.get_system_noise_of(t)
+
+    Sigma_cond = A @ Sigma @ A.T + Q
+
+    # \mu_{t |t-1} and xn|{n-1}
+    mu_cond = A @ mu
+
     Ct = params.get_obs_mat_of(t)
     R = params.get_observation_noise_of(t)
     
@@ -228,6 +220,7 @@ def filter(params: LDS,
     Note that x_hist can optionally be of dimensionality two,
     This corresponds to different samples of the same underlying
     Linear Dynamical System
+
     Parameters
     ----------
     params: LDS
@@ -332,6 +325,7 @@ def smooth(params: LDS,
     Similarly, the covariance terms can optinally be of dimensionally three.
     This corresponds to different samples of the same underlying
     Linear Dynamical System
+
     Parameters
     ----------
     params: LDS
@@ -344,6 +338,7 @@ def smooth(params: LDS,
         Filtered conditional means mut|t-1
     Sigma_cond_hist: array(n_samples?, timesteps, state_size, state_size)
         Filtered conditional covariances Sigmat|t-1
+
     Returns
     -------
     * array(n_samples?, timesteps, state_size):
@@ -357,7 +352,8 @@ def smooth(params: LDS,
                                                              mu_cond_hist[None, ...], Sigma_cond_hist[None, ...]
         has_one_sim = True
     smoother_map = vmap(kalman_smoother, (None, 0, 0, 0, 0))
-    mu_hist_smooth, Sigma_hist_smooth = smoother_map(params, mu_hist, Sigma_hist, mu_cond_hist, Sigma_cond_hist)
+    mu_hist_smooth, Sigma_hist_smooth = smoother_map(params, mu_hist, Sigma_hist,
+                                                     mu_cond_hist, Sigma_cond_hist)
     if has_one_sim:
         mu_hist_smooth, Sigma_hist_smooth = mu_hist_smooth[0, ...], Sigma_hist_smooth[0, ...]
     return mu_hist_smooth, Sigma_hist_smooth
