@@ -120,6 +120,7 @@ class NonMarkovianSequenceModel:
         log_weights = log_weights_prev + norm.logpdf(yobs, loc=mu, scale=jnp.sqrt(self.q))
         dict_carry = {
             "log_weights": log_weights,
+            "particles": xparticles,
         }
         
         return (log_weights, mu, xparticles), dict_carry
@@ -172,7 +173,8 @@ class NonMarkovianSequenceModel:
         log_weights = norm.logpdf(yobs, loc=mu, scale=jnp.sqrt(self.q))
         dict_carry = {
             "log_weights": log_weights,
-            "indices": ix_sampled
+            "indices": ix_sampled,
+            "particles": xparticles,
         }
         return (log_weights, mu, xparticles_prev_sampled), dict_carry
 
