@@ -37,7 +37,7 @@ jit, vmap and optimizers on the hidden markov model.
 
 @flax.struct.dataclass
 class HMMJax:
-    trans_mat: jnp.array  # A : (n_states, n_states)
+    trans_mat: jnp.array  # A : ((n_actions,) n_states, n_states) 
     obs_mat: jnp.array  # B : (n_states, n_obs)
     init_dist: jnp.array  # pi : (n_states)
 
@@ -62,7 +62,7 @@ def normalize(u, axis=0, eps=1e-15):
         The values of the normalizer
     '''
     u = jnp.where(u == 0, 0, jnp.where(u < eps, eps, u))
-    c = u.sum(axis=axis)
+    c = u.sum(axis=axis, keepdims=True)
     c = jnp.where(c == 0, 1, c)
     return u / c, c
 
@@ -371,6 +371,86 @@ def hmm_forwards_backwards_jax(params, obs_seq, length=None):
     # gamma = alpha * jnp.roll(beta, -seq_len + length, axis=0) #: Alternative
     gamma = vmap(lambda x: normalize(x)[0])(gamma)
     return alpha, beta, gamma, ll
+
+
+@partial(jit, static_argnums=(1))
+def fixed_lag_smoother(params, win_len, alpha_win, bmatrix_win, obs, act=None):
+    '''
+    Computes the smoothed posterior for each state in the lagged window of
+    fixed size, win_len.
+
+    Parameters
+    ----------
+    params      : HMMJax
+        Hidden Markov Model (with action-dependent transition)
+    
+    win_len     : int
+        Desired window length (>= 2)
+    
+    alpha_win   : array
+        Alpha values for the most recent win_len steps, excluding current step
+    
+    bmatrix_win : array
+        Beta transformations for the most recent win_len steps, excluding current step
+    
+    obs         : int
+        New observation for the current step
+    
+    act         : array
+        (optional) Actions for the most recent win_len steps, including current step
+    
+    Returns
+    -------
+    * array(win_len, n_states)
+        Updated alpha values
+    
+    * array(win_len, n_states)
+        Updated beta transformations
+    
+    * array(win_len, n_states)
+        Smoothed posteriors for the past d steps
+    '''
+    if len(alpha_win.shape) < 2:
+        alpha_win = jnp.expand_dims(alpha_win, axis=0)
+    curr_len = alpha_win.shape[0]
+    win_len = min(win_len, curr_len+1)
+    assert win_len >= 2, "Must keep a window of length at least 2."
+
+    trans_mat, obs_mat = params.trans_mat, params.obs_mat
+    n_states, n_obs = obs_mat.shape
+    
+    # If trans_mat is independent of action, adjust shape
+    if len(trans_mat.shape) < 3:
+        trans_mat = jnp.expand_dims(trans_mat, axis=0)
+        act = None
+    if act is None:
+        act = jnp.zeros(shape=(curr_len+1,), dtype=jnp.int8)
+
+    # Shift window forward by 1
+    if curr_len == win_len:
+        alpha_win = alpha_win[1:]
+        bmatrix_win = bmatrix_win[1:]
+        
+    # Perform one forward operation
+    new_alpha, _ = normalize(
+        obs_mat[:, obs] * (alpha_win[-1][:, None] * trans_mat[act[-1]]).sum(axis=0)
+    )
+    alpha_win = jnp.concatenate((alpha_win, new_alpha[None, :]))
+
+    # Smooth inside the window in parallel
+    def update_bmatrix(bmatrix):
+        return (bmatrix @ trans_mat[act[-2]]) * obs_mat[:, obs]
+    bmatrix_win = vmap(update_bmatrix)(bmatrix_win)
+    bmatrix_win = jnp.concatenate((bmatrix_win, jnp.eye(n_states)[None, :]))
+    
+    # Compute beta values by row-summing bmatrices
+    def get_beta(bmatrix):
+        return normalize(bmatrix.sum(axis=1))[0]
+    beta_win = vmap(get_beta)(bmatrix_win)
+    
+    # Compute posterior values
+    gamma_win, _ = normalize(alpha_win * beta_win, axis=1)
+    return alpha_win, bmatrix_win, gamma_win
 
 
 @jit

@@ -16,6 +16,7 @@ import jax.numpy as jnp
 from jsl.hmm.hmm_numpy_lib import HMMNumpy, hmm_forwards_backwards_numpy, hmm_loglikelihood_numpy
 from jsl.hmm.hmm_lib import HMMJax
 from jsl.hmm.hmm_lib import hmm_sample_jax, hmm_forwards_backwards_jax, hmm_loglikelihood_jax
+from jsl.hmm.hmm_lib import normalize, fixed_lag_smoother
 import jsl.hmm.hmm_utils as hmm_utils
 
 import distrax
@@ -124,3 +125,21 @@ assert np.allclose(gammas_np, gammas_jax)
 assert np.allclose(alphas, alphas_jax, 8)
 assert np.allclose(loglikelihood, loglikelihood_jax)
 assert np.allclose(gammas, gammas_jax, 8)
+
+########
+#Test Fixed Lag Smoother
+
+# helper function
+def get_fls_result(params, data, win_len, act=None):
+  assert data.size > 2, "Complete observation set must be of size at least 2"
+  prior, obs_mat = params.init_dist, params.obs_mat
+  n_states = obs_mat.shape[0]
+  alpha, _ = normalize(prior * obs_mat[:, data[0]])
+  bmatrix = jnp.eye(n_states)[None, :]
+  for obs in data[1:]:
+    alpha, bmatrix, gamma = fixed_lag_smoother(params, win_len, alpha, bmatrix, obs)
+  return alpha, gamma
+
+*_, gammas_fls = get_fls_result(params_jax, jnp.array(x_hist), jnp.array(x_hist).size)
+
+assert np.allclose(gammas_fls, gammas_jax)
