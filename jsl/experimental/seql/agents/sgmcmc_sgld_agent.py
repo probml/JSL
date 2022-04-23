@@ -62,15 +62,17 @@ class SGLDAgent(Agent):
                  batch_size: int,
                  nsamples: int,
                  nlast: int = 10,
+                 min_n_samples: int = 1,
                  buffer_size: int = 0,
-                 threshold: int = 1,
                  obs_noise=0.1,
                  is_classifier: bool = False):
         super(SGLDAgent, self).__init__(is_classifier)
-        assert threshold <= buffer_size
+
+        assert min_n_samples <= buffer_size
+
         self.memory = Memory(buffer_size)
         self.buffer_size = buffer_size
-        self.threshold = threshold
+        self.min_n_samples = min_n_samples
         self.nlast = nlast
         self.batch_size = batch_size
         self.nsamples = nsamples
@@ -78,6 +80,7 @@ class SGLDAgent(Agent):
         self.model_fn = model_fn
         self.logprior = logprior
         self.loglikelihood = loglikelihood
+        self.obs_noise = obs_noise
 
     def init_state(self,
                    params: Params):
@@ -92,7 +95,7 @@ class SGLDAgent(Agent):
         assert self.buffer_size >= len(x)
 
         x_, y_ = self.memory.update(x, y)
-        if len(x_) < self.threshold:
+        if len(x_) < self.min_n_samples:
             warnings.warn("There should be more data.", UserWarning)
             info = Info(False, -1, jnp.inf)
             return belief, info
@@ -136,5 +139,4 @@ class SGLDAgent(Agent):
         theta = belief.sampler(key,
                                1,
                                belief.params)
-
-        return theta
+        return theta[0]

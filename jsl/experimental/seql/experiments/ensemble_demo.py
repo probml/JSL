@@ -14,7 +14,7 @@ from functools import partial
 # Prior and trainable networks have the same architecture
 from jsl.experimental.seql.agents.ensemble_agent import ensemble_agent
 from jsl.experimental.seql.environments.sequential_regression_env import SequentialRegressionEnvironment
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
 
 
 # Prediction function to be resued in Part 3
@@ -127,7 +127,7 @@ if __name__ == "__main__":
     optimizer = optax.adam(learning_rate)
     nepochs = 20
 
-    agent = ensemble_agent(mse,
+    agent = ensemble_agent(mean_squared_error,
                            model.apply,
                            nensembles=nensembles,
                            optimizer=optimizer,

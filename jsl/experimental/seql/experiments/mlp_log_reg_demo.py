@@ -19,7 +19,7 @@ from jsl.experimental.seql.agents.sgmcmc_sgld_agent import SGLDAgent
 from jsl.experimental.seql.agents.eekf_agent import EEKFAgent
 from jsl.experimental.seql.environments.base import make_classification_mlp_environment, make_mlp
 from jsl.experimental.seql.experiments.experiment_utils import run_experiment
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
 from jsl.experimental.seql.experiments.plotting import colors
 from jsl.nlds.extended_kalman_filter import NLDS
 
@@ -35,11 +35,11 @@ def negative_mean_square_error(params, inputs, outputs, model_fn, strength=0.2):
 
 
 def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.2):
-    return mse(params, inputs, outputs, model_fn) + strength * logprior_fn(params) / len(inputs)
+    return mean_squared_error(params, inputs, outputs, model_fn) + strength * logprior_fn(params) / len(inputs)
 
 
 def energy_fn(params, data, model_fn, strength=0.2):
-    return mse(params, *data, model_fn) + strength * logprior_fn(params) / len(data[0])
+    return mean_squared_error(params, *data, model_fn) + strength * logprior_fn(params) / len(data[0])
 
 
 losses = []
@@ -165,7 +165,7 @@ def main():
     optimizer = optax.adam(1e-3)
 
     nepochs = 4
-    sgd = SGDAgent(mse,
+    sgd = SGDAgent(mean_squared_error,
                    model_fn,
                    optimizer=optimizer,
                    obs_noise=obs_noise,
@@ -173,7 +173,7 @@ def main():
                    buffer_size=buffer_size,
                    is_classifier=True)
 
-    batch_sgd = SGDAgent(mse,
+    batch_sgd = SGDAgent(mean_squared_error,
                          model_fn,
                          optimizer=optimizer,
                          obs_noise=obs_noise,

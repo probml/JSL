@@ -11,7 +11,7 @@ import warnings
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.utils import mse
+from jsl.experimental.seql.utils import mean_squared_error
 
 Params = Any
 
@@ -56,28 +56,30 @@ class Info(NamedTuple):
 class LBFGSBAgent(Agent):
 
     def __init__(self,
-                 objective_fn: ObjectiveFn = mse,
+                 objective_fn: ObjectiveFn = mean_squared_error,
                  model_fn: ModelFn = lambda mu, x: x @ mu,
-                 tol: Optional[float] = None,
                  options: Optional[Dict[str, Any]] = None,
+                 min_n_samples: int = 1,
                  buffer_size: int = jnp.inf,
-                 threshold: int = 1,
+                 obs_noise: float = 0.1,
+                 tol: Optional[float] = None,
                  is_classifier: bool = False):
-
         super(LBFGSBAgent, self).__init__(is_classifier)
 
         partial_objective_fn = partial(objective_fn,
                                        model_fn=model_fn)
 
         self.bfgs = ScipyMinimize(fun=partial_objective_fn,
-                             method="L-BFGS-B",
-                             tol=tol,
-                             options=options)
-        assert threshold <= buffer_size
+                                  method="L-BFGS-B",
+                                  tol=tol,
+                                  options=options)
+        assert min_n_samples <= buffer_size
+        self.min_n_samples = min_n_samples
 
         self.memory = Memory(buffer_size)
         self.buffer_size = buffer_size
         self.model_fn = model_fn
+        self.obs_noise = obs_noise
 
     def init_state(self,
                    x: chex.Array):
@@ -91,7 +93,7 @@ class LBFGSBAgent(Agent):
         assert self.buffer_size >= len(x)
         x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < self.threshold:
+        if len(x_) < self.min_n_samples:
             warnings.warn("There should be more data.", UserWarning)
             return belief, Info()
 
@@ -99,14 +101,6 @@ class LBFGSBAgent(Agent):
                                      inputs=x_,
                                      outputs=y_)
         return BeliefState(params), info
-
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        n = len(x)
-        posterior_cov = self.obs_noise * jnp.eye(n)
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
 
     def sample_params(self,
                       key: chex.PRNGKey,

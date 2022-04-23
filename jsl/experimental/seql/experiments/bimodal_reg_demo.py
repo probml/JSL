@@ -18,7 +18,7 @@ from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_sin_wave_regression_environment
 from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
 
 
 class MLP(nn.Module):
@@ -39,7 +39,7 @@ def logprior_fn(params, strength=0.2):
     return -sum(tree_map(lambda x : jnp.sum(x**2), leaves)) * strength
 
 def loglikelihood_fn(params, x, y, model_fn):
-    return -mse(params, x, y, model_fn)*len(x)
+    return -mean_squared_error(params, x, y, model_fn) * len(x)
 
 def logjoint_fn(params, x, y, model_fn, strength=0.2):
     return loglikelihood_fn(params, x, y, model_fn) + logprior_fn(params, strength=strength)
@@ -182,19 +182,19 @@ def main():
     optimizer = optax.adam(1e-1)
 
     nepochs = 40
-    sgd = sgd_agent(mse,
+    sgd = sgd_agent(mean_squared_error,
                     model_fn,
                     optimizer=optimizer,
                     obs_noise=obs_noise,
                     nepochs=nepochs,
                     buffer_size=buffer_size)
     
-    batch_sgd = sgd_agent(mse,
-                        model_fn,
-                        optimizer=optimizer,
-                        obs_noise=obs_noise,
-                        buffer_size=ntrain,
-                        nepochs=nepochs*nsteps)
+    batch_sgd = sgd_agent(mean_squared_error,
+                          model_fn,
+                          optimizer=optimizer,
+                          obs_noise=obs_noise,
+                          buffer_size=ntrain,
+                          nepochs=nepochs*nsteps)
 
     nsamples, nwarmup = 300, 200
     nuts = blackjax_nuts_agent(nuts_key,

@@ -17,6 +17,7 @@ class EEKFAgent(Agent):
     def __init__(self,
                  nlds: NLDS,
                  model_fn: Callable = lambda params, x: x @ params,
+                 obs_noise: float = 0.1,
                  return_params: List[str] = ["mean", "cov"],
                  return_history: bool = False,
                  is_classifier: bool = True):
@@ -27,6 +28,7 @@ class EEKFAgent(Agent):
         self.return_params = return_params
         self.return_history = return_history
         self.model_fn = model_fn
+        self.obs_noise = obs_noise
 
     def init_state(self,
                    mu: chex.Array,
@@ -52,6 +54,7 @@ class EEKFAgent(Agent):
                       key: chex.PRNGKey,
                       belief: BeliefState):
         mu, Sigma = belief.mu, belief.Sigma
+        print(mu.shape, Sigma.shape)
         mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
                                                        Sigma)
         theta = mvn.sample(seed=key)

@@ -17,7 +17,7 @@ from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler
     make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.experiment_utils import run_experiment
 from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
-from jsl.experimental.seql.utils import mse
+from jsl.experimental.seql.utils import mean_squared_error
 
 
 class MLP(nn.Module):
@@ -41,7 +41,7 @@ def logprior_fn(params):
 
 
 def loglikelihood_fn(params, x, y, model_fn):
-    return -mse(params, x, y, model_fn) * len(x)
+    return -mean_squared_error(params, x, y, model_fn) * len(x)
 
 
 def logjoint_fn(params, x, y, model_fn, strength=0.01):
@@ -114,14 +114,14 @@ def main():
     optimizer = optax.adam(1e-1)
 
     nepochs = 4
-    sgd = sgd_agent(mse,
+    sgd = sgd_agent(mean_squared_error,
                     model_fn,
                     optimizer=optimizer,
                     obs_noise=obs_noise,
                     nepochs=nepochs,
                     buffer_size=buffer_size)
 
-    batch_sgd = sgd_agent(mse,
+    batch_sgd = sgd_agent(mean_squared_error,
                           model_fn,
                           optimizer=optimizer,
                           obs_noise=obs_noise,

@@ -49,20 +49,18 @@ class LaplaceAgent(Agent):
                  solver: JaxOptSolver,
                  energy_fn: EnergyFn,
                  model_fn: ModelFn,
-                 obs_noise: float = 0.01,
-                 threshold: int = 1,
+                 min_n_samples: int = 1,
                  buffer_size: int = 0,
+                 obs_noise: float = 0.01,
                  is_classifier: bool = False):
         super(LaplaceAgent, self).__init__(is_classifier)
-
-        assert threshold <= buffer_size
 
         self.memory = Memory(buffer_size)
         self.solver = solver
         self.energy_fn = energy_fn
         self.model_fn = model_fn
         self.obs_noise = obs_noise
-        self.threshold = threshold
+        self.min_n_samples = min_n_samples
         self.buffer_size = buffer_size
 
     def init_state(self,
@@ -78,18 +76,16 @@ class LaplaceAgent(Agent):
 
         x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < self.threshold:
+        if len(x_) < self.min_n_samples:
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
         params, info = self.solver.run(belief.mu,
                                        inputs=x_,
-                                       outputs=y_,
-                                       model_fn=self.model_fn)
+                                       outputs=y_)
         partial_energy_fn = partial(self.energy_fn,
                                     inputs=x_,
-                                    outputs=y_,
-                                    model_fn=self.model_fn)
+                                    outputs=y_)
 
         Sigma = hessian(partial_energy_fn)(params)
         return BeliefState(params, tree_map(jnp.squeeze, Sigma)), info
@@ -100,5 +96,6 @@ class LaplaceAgent(Agent):
         mu, Sigma = belief.mu, belief.Sigma
         mvn = distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1),
                                                        Sigma)
-        theta = mvn.sample(seed=key, sample_shape=mu.shape)
+        theta = mvn.sample(seed=key)
+        theta = theta.reshape(mu.shape)
         return theta

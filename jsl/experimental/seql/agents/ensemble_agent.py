@@ -63,15 +63,16 @@ class EnsembleAgent(Agent):
                  loss_fn: LossFn,
                  model_fn: ModelFn,
                  nensembles: int,
-                 optimizer: Optimizer = optax.adam(1e-2),
-                 buffer_size: int = jnp.inf,
                  nepochs: int = 20,
-                 threshold: int = 1,
+                 min_n_samples: int = 1,
+                 buffer_size: int = jnp.inf,
+                 obs_noise: float = 0.1,
+                 optimizer: Optimizer = optax.adam(1e-2),
                  is_classifier: bool = False):
 
         super(EnsembleAgent, self).__init__(is_classifier)
 
-        assert threshold <= buffer_size
+        assert min_n_samples <= buffer_size
 
         self.memory = Memory(buffer_size)
         partial_loss_fn = partial(loss_fn, model_fn=model_fn)
@@ -82,7 +83,8 @@ class EnsembleAgent(Agent):
         self.optimizer = optimizer
         self.buffer_size = buffer_size
         self.nepochs = nepochs
-        self.threshold = threshold
+        self.min_n_samples = min_n_samples
+        self.obs_noise = obs_noise
 
     def init_state(self,
                    params: Params):
@@ -98,7 +100,7 @@ class EnsembleAgent(Agent):
         assert self.buffer_size >= len(x)
         x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < self.threshold:
+        if len(x_) < self.min_n_samples:
             warnings.warn("There should be more data.", UserWarning)
             info = Info(False, -1, jnp.inf)
             return belief, info
@@ -134,16 +136,6 @@ class EnsembleAgent(Agent):
         params, opt_states, = vtrain(belief.params, belief.opt_states, x_, y_)
 
         return BeliefState(params, opt_states), Info()
-
-    def get_posterior_cov(self,
-                          belief: BeliefState,
-                          x: chex.Array):
-        vpredict = vmap(self.model_fn, in_axes=(0, None))
-        predictions = vpredict(belief.params, x)
-        posterior_cov = jnp.diag(jnp.power(jnp.std(predictions,
-                                                   axis=0), 2))
-        chex.assert_shape(posterior_cov, [n, n])
-        return posterior_cov
 
     def sample_params(self,
                       key: chex.PRNGKey,

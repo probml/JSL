@@ -13,14 +13,16 @@ from jsl.experimental.seql.agents.eekf_agent import EEKFAgent
 from jsl.nlds.base import NLDS
 
 
-def fz(x): return x
+def fz(x):
+    return x
 
 
 def fx(w, x):
     return (x @ w)[None, ...]
 
 
-def Rt(w, x): return (x @ w * (1 - x @ w))[None, None]
+def Rt(w, x):
+    return (x @ w * (1 - x @ w))[None, None]
 
 
 class EEKFAgentTest(parameterized.TestCase):
@@ -107,15 +109,17 @@ class EEKFAgentTest(parameterized.TestCase):
 
     @parameterized.parameters(itertools.product((0,),
                                                 (5,),
+                                                (3,),
                                                 (2,),
                                                 (10,)))
     def test_logprob_given_belief(self,
                                   seed: int,
                                   ntrain: int,
                                   input_dim: int,
+                                  output_dim: int,
                                   nsamples_params: int
                                   ):
-        output_dim = 1
+
 
         Pt = jnp.eye(input_dim) * 0.0
         P0 = jnp.eye(input_dim) * 2.0
@@ -139,6 +143,7 @@ class EEKFAgentTest(parameterized.TestCase):
 
         samples = agent.logprob_given_belief(logprob_key, belief, x, y, nsamples_params)
         chex.assert_shape(samples, (ntrain, output_dim))
+
         assert jnp.any(jnp.isinf(samples)) == False
         assert jnp.any(jnp.isnan(samples)) == False
 

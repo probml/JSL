@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import jit, value_and_grad, lax
+from jax import jit, value_and_grad
 
 import optax
 
@@ -54,11 +54,11 @@ class SGDAgent(Agent):
     def __init__(self,
                  loss_fn: LossFn,
                  model_fn: ModelFn,
-                 optimizer: Optimizer = optax.adam(1e-2),
-                 obs_noise: float = 0.1,
-                 buffer_size: int = jnp.inf,
                  nepochs: int = 20,
                  threshold: int = 1,
+                 buffer_size: int = jnp.inf,
+                 obs_noise: float = 0.1,
+                 optimizer: Optimizer = optax.adam(1e-2),
                  is_classifier: bool = False):
         super(SGDAgent, self).__init__(is_classifier)
         assert threshold <= buffer_size

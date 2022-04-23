@@ -42,23 +42,23 @@ class LBFGSAgent(Agent):
     def __init__(self,
                  objective_fn: ObjectiveFn,
                  model_fn: ModelFn = lambda mu, x: x @ mu,
-                 has_aux: bool = False,
                  maxiter: int = 500,
-                 tol: float = 1e-3,
-                 condition: str = "strong-wolfe",
                  maxls: int = 15,
+                 history_size: int = 10,
+                 buffer_size: int = jnp.inf,
+                 min_n_samples: int = 1,
+                 obs_noise: float = 0.1,
                  decrease_factor: float = 0.8,
                  increase_factor: float = 1.5,
-                 history_size: int = 10,
-                 use_gamma: bool = True,
-                 implicit_diff: bool = True,
+                 tol: float = 1e-3,
                  implicit_diff_solve: Optional[Callable] = None,
+                 condition: str = "strong-wolfe",
                  jit: AutoOrBoolean = "auto",
                  unroll: AutoOrBoolean = "auto",
+                 has_aux: bool = False,
+                 use_gamma: bool = True,
+                 implicit_diff: bool = True,
                  verbose: bool = False,
-                 buffer_size: int = jnp.inf,
-                 threshold: int = 1,
-                 obs_noise=0.1,
                  is_classifier: bool = False):
         '''
         https://github.com/google/jaxopt/blob/53b539e6c5cee4c52262ce17d4601839422ffe87/jaxopt/_src/lbfgs.py#L148
@@ -92,7 +92,7 @@ class LBFGSAgent(Agent):
         partial_objective_fn = partial(objective_fn,
                                        model_fn=model_fn)
 
-        assert threshold <= buffer_size
+        assert min_n_samples <= buffer_size
 
         self.memory = Memory(buffer_size)
         self.model_fn = model_fn
@@ -112,7 +112,8 @@ class LBFGSAgent(Agent):
                            unroll,
                            verbose)
         self.buffer_size = buffer_size
-        self.threshold = threshold
+        self.min_n_samples = min_n_samples
+        self.obs_noise = obs_noise
 
     def init_state(self,
                    params: Params):
@@ -126,7 +127,7 @@ class LBFGSAgent(Agent):
         assert self.buffer_size >= len(x)
         x_, y_ = self.memory.update(x, y)
 
-        if len(x_) < self.threshold:
+        if len(x_) < self.min_n_samples:
             warnings.warn("There should be more data.", UserWarning)
             return belief, None
 
@@ -134,7 +135,6 @@ class LBFGSAgent(Agent):
                                       inputs=x_,
                                       outputs=y_)
         return BeliefState(params), info
-
 
     def get_posterior_cov(self,
                           belief: BeliefState,

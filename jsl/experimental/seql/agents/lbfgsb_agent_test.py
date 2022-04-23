@@ -1,42 +1,31 @@
-"""Tests for jsl.sent.agents.laplace_agent"""
+"""Tests for jsl.sent.agents.lbfgsb_agent"""
 import jax.numpy as jnp
 from jax import random
-from jaxopt import ScipyMinimize
 
 import chex
+
 import itertools
-from functools import partial
 
 from absl.testing import absltest
 from absl.testing import parameterized
 
-from jsl.experimental.seql.agents.laplace_agent import LaplaceAgent
-from jsl.experimental.seql.utils import mean_squared_error
+from jsl.experimental.seql.agents.lbfgsb_agent import LBFGSBAgent
 
 
-class LaplaceAgentTest(parameterized.TestCase):
+class BFGSTest(parameterized.TestCase):
 
-    @parameterized.parameters(itertools.product((4,), (1, 0, 5), (0.1,)))
+    @parameterized.parameters(itertools.product((4,), (5,), (0.1,)))
     def test_init_state(self,
                         input_dim: int,
                         buffer_size: int,
                         obs_noise: float):
         output_dim = 1
-        model_fn = lambda params, x: x @ params
-        energy_fn = partial(mean_squared_error, model_fn=model_fn)
-        solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-        agent = LaplaceAgent(buffer_size=buffer_size,
-                             obs_noise=obs_noise,
-                             model_fn=model_fn,
-                             energy_fn=energy_fn,
-                             solver=solver)
+        agent = LBFGSBAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        belief = agent.init_state(params)
 
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim)
-        belief = agent.init_state(mu, Sigma)
-
-        chex.assert_shape(belief.mu, mu.shape)
-        chex.assert_shape(belief.Sigma, Sigma.shape)
+        chex.assert_shape(belief.params, params.shape)
 
         assert agent.obs_noise == obs_noise
         assert agent.buffer_size == buffer_size
@@ -54,17 +43,10 @@ class LaplaceAgentTest(parameterized.TestCase):
                     obs_noise: float):
         output_dim = 1
 
-        model_fn = lambda params, x: x @ params
-        energy_fn = partial(mean_squared_error, model_fn=model_fn)
-        solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-        agent = LaplaceAgent(buffer_size=buffer_size,
-                             obs_noise=obs_noise,
-                             model_fn=model_fn,
-                             energy_fn=energy_fn,
-                             solver=solver)
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim)
-        initial_belief = agent.init_state(mu, Sigma)
+        agent = LBFGSBAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        initial_belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, w_key, noise_key, update_key = random.split(key, 4)
@@ -75,8 +57,7 @@ class LaplaceAgentTest(parameterized.TestCase):
 
         belief, info = agent.update(update_key, initial_belief, x, y)
 
-        chex.assert_shape(belief.mu, (input_dim, output_dim))
-        chex.assert_shape(belief.Sigma, (input_dim, input_dim))
+        chex.assert_shape(belief.params, (input_dim, output_dim))
 
     @parameterized.parameters(itertools.product((0,),
                                                 (2,),
@@ -89,18 +70,11 @@ class LaplaceAgentTest(parameterized.TestCase):
                            obs_noise: float):
         output_dim = 1
 
-        model_fn = lambda params, x: x @ params
-        energy_fn = partial(mean_squared_error, model_fn=model_fn)
-        solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-        agent = LaplaceAgent(buffer_size=buffer_size,
-                             obs_noise=obs_noise,
-                             model_fn=model_fn,
-                             energy_fn=energy_fn,
-                             solver=solver)
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
+        agent = LBFGSBAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
 
-        belief = agent.init_state(mu, Sigma)
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         theta = agent.sample_params(key, belief)
@@ -125,18 +99,10 @@ class LaplaceAgentTest(parameterized.TestCase):
                                          ):
         output_dim = 1
 
-        model_fn = lambda params, x: x @ params
-        energy_fn = partial(mean_squared_error, model_fn=model_fn)
-        solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-        agent = LaplaceAgent(buffer_size=buffer_size,
-                             obs_noise=obs_noise,
-                             model_fn=model_fn,
-                             energy_fn=energy_fn,
-                             solver=solver)
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
-
-        belief = agent.init_state(mu, Sigma)
+        agent = LBFGSBAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, ppd_key = random.split(key)
@@ -161,19 +127,11 @@ class LaplaceAgentTest(parameterized.TestCase):
                                   ):
         output_dim = 1
 
-        model_fn = lambda params, x: x @ params
-        energy_fn = partial(mean_squared_error, model_fn=model_fn)
-        solver = ScipyMinimize(fun=energy_fn, method="BFGS")
-        agent = LaplaceAgent(buffer_size=buffer_size,
-                             obs_noise=obs_noise,
-                             model_fn=model_fn,
-                             energy_fn=energy_fn,
-                             solver=solver)
+        agent = LBFGSBAgent(buffer_size=buffer_size,
+                            obs_noise=obs_noise)
+        params = jnp.zeros((input_dim, output_dim))
 
-        mu = jnp.zeros((input_dim, output_dim))
-        Sigma = jnp.eye(input_dim) * obs_noise
-
-        belief = agent.init_state(mu, Sigma)
+        belief = agent.init_state(params)
 
         key = random.PRNGKey(seed)
         x_key, w_key, noise_key, logprob_key = random.split(key, 4)

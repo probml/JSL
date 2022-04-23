@@ -1,5 +1,5 @@
 import jax.numpy as jnp
-from jax import lax, nn, vmap, random
+from jax import lax, random
 
 import distrax
 
@@ -10,6 +10,8 @@ from typing import NamedTuple, Callable, Optional, Tuple
 
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
+
+
 Belief = NamedTuple
 
 
@@ -58,80 +60,12 @@ def gaussian_log_likelihood(mu: chex.Array,
     return jnp.sum(distrax.MultivariateNormalFullCovariance(jnp.squeeze(mu, axis=-1), cov).log_prob(predictions))
 
 
-def mse(params: chex.ArrayTree,
-        inputs: chex.Array,
-        outputs: chex.Array,
-        model_fn: Callable) -> float:
+def mean_squared_error(params: chex.ArrayTree,
+                       inputs: chex.Array,
+                       outputs: chex.Array,
+                       model_fn: Callable) -> float:
     predictions = model_fn(params, inputs)
     return jnp.mean(jnp.power(predictions - outputs, 2))
-
-
-def posterior_noise(x: chex.Array,
-                    sigma: chex.Array,
-                    obs_noise: float) -> chex.Array:
-    x_ = x.reshape((-1, 1))
-    return obs_noise + x_.T.dot(sigma.dot(x_))
-
-
-def log_lik_joint(key: chex.PRNGKey,
-                  agent: Agent,
-                  belief: Belief,
-                  X: chex.Array,
-                  Y: chex.Array,
-                  nsamples: int)->float:
-    # X: N*J*D, Y: N*J*C  (N=Ntest, J=tau=Njoint)
-
-    def classification_log_lik(theta: chex.ArrayTree,
-                               x: chex.Array,
-                               y: chex.Array) -> chex.Array:
-        logits = nn.log_softmax(agent.apply(params=theta, x=x), axis=-1)
-        return distrax.Categorical(logits=logits).log_prob(y)
-
-    def regression_log_lik(theta: chex.ArrayTree,
-                           x: chex.Array,
-                           y: chex.Array) -> chex.Array:
-        mu = agent.apply(params=theta, x=x)
-        sigma = agent.get_posterior_cov(belief=belief, x=x)
-        return distrax.MultivariateNormalDiag(mu, sigma).log_prob(y)
-
-    def log_lik_per_theta(theta, x, y) -> chex.Array:
-        logjoint = lax.cond(agent.is_classifier,
-                            vmap(classification_log_lik, in_axes=(None, 0, 0)),
-                            vmap(regression_log_lik, in_axes=(None, 0, 0)),
-                            theta, x, y)
-        return logjoint
-
-    def log_lik_per_sample(key: chex.PRNGKey,
-                           belief: Belief,
-                           x: chex.Array,
-                           y: chex.Array) -> float:
-        theta = agent.sample_params(key, belief)
-        ll = jnp.sum(vmap(log_lik_per_theta, in_axes=(None, 0, 0))(theta, x, y))
-        return ll
-
-    keys = random.split(key, nsamples)
-    vlogjoint = vmap(log_lik_per_sample, in_axes=(0, None, 0, 0))
-    return jnp.mean(vlogjoint(keys, belief, X, Y), axis=0)
-
-
-def log_lik(key: chex.PRNGKey,
-            agent: Agent,
-            belief: Belief,
-            x: chex.Array,
-            y: chex.Array,
-            nsamples: float) -> float:
-    N, D = x.shape
-    N, C = y.shape
-
-    if agent.is_classifier:
-        logits = agent.predict_probs(key, belief, x, nsamples)
-        chex.assert_shape(logits, [N, ])
-        return distrax.Categorical(logits=logits).log_prob(y).mean(axis=0)
-    else:
-        mu, sigma = agent.predict_gauss(key, belief, x, nsamples)
-        chex.assert_shape(mu, [N, C])
-        # chex.assert_shape(sigma, [N, N])
-        return distrax.MultivariateNormalDiag(mu, sigma).log_prob(y).mean(axis=0)
 
 
 # Main function
@@ -142,7 +76,8 @@ def train(key: chex.PRNGKey,
           nsteps: int,
           nsamples: int,
           njoint: int,
-          callback: Optional[Callable] = None)->Tuple[Belief, chex.Array]:
+          callback: Optional[Callable] = None) -> Tuple[Belief, chex.Array]:
+
     rewards = []
     belief = initial_belief_state
     keys = random.split(key, nsteps)
@@ -166,7 +101,7 @@ def train(key: chex.PRNGKey,
 
             for f in callback_list:
                 f(
-                    belief_state=belief,
+                    belief=belief,
                     info=info,
                     X_train=X_train,
                     Y_train=Y_train,
@@ -177,11 +112,6 @@ def train(key: chex.PRNGKey,
                     true_ll=ll,
                     t=t
                 )
-        NLL_test = -log_lik(ll_key, agent, belief, X_test, Y_test, nsamples)
-        # NLL_joint = -log_lik_joint(joint_key, agent, belief, X_joint, Y_joint, nsamples)
-
-        print(NLL_test)
-        # print(NLL_joint)
 
     return belief, rewards
 

@@ -1,10 +1,8 @@
 import jax.numpy as jnp
-from jax import vmap, random
+from jax import random
 
 import seaborn as sns
 from functools import reduce
-
-from jsl.experimental.seql.utils import posterior_noise
 
 agents = {"kf": 0,
           "eekf": 0,
@@ -40,72 +38,42 @@ def sort_data(x, y):
     return x_, y_
 
 
-def get_noise(agent_name, belief, x, obs_noise):
-    if agent_name in ["exact bayes", "kf", "laplace"]:
-        Sigma = belief.Sigma
-    elif agent_name == "nuts":
-        samples = belief.samples.position
-        Sigma = jnp.diag(jnp.power(jnp.std(jnp.squeeze(samples), axis=0), 2))
-    elif agent_name == "sgld":
-        samples = belief.samples
-        Sigma = jnp.diag(jnp.power(jnp.std(jnp.squeeze(samples), axis=0), 2))
-    else:
-        nfeatures = x.shape[-1]
-        Sigma = jnp.zeros((nfeatures, nfeatures))
-
-    v_posterior_noise = vmap(posterior_noise, in_axes=(0, None, None))
-    noise = v_posterior_noise(x, Sigma, obs_noise)
-
-    return noise
-
-
 def plot_regression_posterior_predictive(ax,
-                                         agent,
+                                         posterior_predictive_outputs,
                                          env,
-                                         belief,
                                          agent_name,
                                          t):
     nprev = reduce(lambda x, y: x * y,
                    env.X_test[:t].shape[:-1])
 
-    X_train, Y_train = env.X_test[:t + 1], env.y_test[:t + 1]
+    X_test, y_test = env.X_test[t], env.y_test[t]
 
-    nfeatures = X_train.shape[-1]
-    prev_x = X_train.reshape((-1, nfeatures))[:nprev, 1]
-    prev_y = Y_train.reshape((-1, 1))[:nprev]
+    nfeatures = X_test.shape[-1]
+    prev_x = X_test.reshape((-1, nfeatures))[:nprev, 1]
+    prev_y = y_test.reshape((-1, 1))[:nprev]
 
-    cur_x = X_train.reshape((-1, nfeatures))[nprev:, 1]
-    cur_y = Y_train.reshape((-1, 1))[nprev:]
+    cur_x = X_test.reshape((-1, nfeatures))[nprev:, 1]
+    cur_y = y_test.reshape((-1, 1))[nprev:]
 
     # Plot training data
     ax.scatter(prev_x, prev_y, c="#40476D")
     ax.scatter(cur_x, cur_y, c="#c33149")
 
-    X_train, Y_train = sort_data(X_train, Y_train)
+    X_test, y_test = sort_data(X_test, y_test)
 
-    theta = agent.sample_params(random.PRNGKey(0), belief)
+    ypred, error = posterior_predictive_outputs
 
-    print(theta.shape)
-    mu = agent._apply(theta, X_train)
-    sigma = get_noise(agent_name,
-                      belief,
-                      X_train,
-                      env.obs_noise)
-
-    ypred = jnp.squeeze(mu)
-    error = jnp.squeeze(sigma)
-
-    ground_truth = env.true_model(X_train)
-    ax.plot(jnp.squeeze(X_train[:, 1]),
+    ground_truth = env.true_model(X_test)
+    ax.plot(jnp.squeeze(X_test[:, 1]),
             jnp.squeeze(ground_truth),
             color="#72A276",
             linewidth=2)
 
-    ax.errorbar(jnp.squeeze(X_train[:, 1]),
+    ax.errorbar(jnp.squeeze(X_test[:, 1]),
                 ypred,
                 yerr=error,
                 color=colors[agent_name])
-    ax.fill_between(jnp.squeeze(X_train[:, 1]),
+    ax.fill_between(jnp.squeeze(X_test[:, 1]),
                     ypred + error,
                     ypred - error,
                     alpha=0.2,

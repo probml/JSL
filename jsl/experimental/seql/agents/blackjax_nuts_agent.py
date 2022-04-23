@@ -75,7 +75,7 @@ class BlackJaxNutsAgent(Agent):
                  nwarmup: int,
                  nlast: int = 10,
                  buffer_size: int = 0,
-                 threshold: int = 1,
+                 min_n_samples: int = 1,
                  obs_noise: float = 0.1,
                  is_classifier: bool = False):
 
@@ -84,7 +84,7 @@ class BlackJaxNutsAgent(Agent):
         if buffer_size == jnp.inf:
             buffer_size = 0
 
-        assert threshold <= buffer_size or buffer_size == 0
+        assert min_n_samples <= buffer_size or buffer_size == 0
         self.memory = Memory(buffer_size)
 
         self.logprob_fn = logprob_fn
@@ -94,7 +94,7 @@ class BlackJaxNutsAgent(Agent):
         self.nsamples = nsamples
         self.obs_noise = obs_noise
         self.buffer_size = buffer_size
-        self.threshold = threshold
+        self.threshold = min_n_samples
 
     def init_state(self,
                    initial_position: Params):

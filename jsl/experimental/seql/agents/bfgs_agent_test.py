@@ -21,7 +21,7 @@ class BFGSTest(parameterized.TestCase):
                         obs_noise: float):
         output_dim = 1
         agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
+                          obs_noise=obs_noise)
         params = jnp.zeros((input_dim, output_dim))
         belief = agent.init_state(params)
 
@@ -44,7 +44,7 @@ class BFGSTest(parameterized.TestCase):
         output_dim = 1
 
         agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
+                          obs_noise=obs_noise)
         params = jnp.zeros((input_dim, output_dim))
         initial_belief = agent.init_state(params)
 
@@ -71,29 +71,7 @@ class BFGSTest(parameterized.TestCase):
         output_dim = 1
 
         agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
-        params = jnp.zeros((input_dim, output_dim))
-
-        belief = agent.init_state(params)
-
-        key = random.PRNGKey(seed)
-        theta = agent.sample_params(key, belief)
-
-        chex.assert_shape(theta, (input_dim, output_dim))
-
-    @parameterized.parameters(itertools.product((0,),
-                                                (2,),
-                                                (10,),
-                                                (0.1,)))
-    def test_sample_params(self,
-                           seed: int,
-                           input_dim: int,
-                           buffer_size: int,
-                           obs_noise: float):
-        output_dim = 1
-
-        agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
+                          obs_noise=obs_noise)
         params = jnp.zeros((input_dim, output_dim))
 
         belief = agent.init_state(params)
@@ -122,7 +100,7 @@ class BFGSTest(parameterized.TestCase):
         output_dim = 1
 
         agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
+                          obs_noise=obs_noise)
         params = jnp.zeros((input_dim, output_dim))
         belief = agent.init_state(params)
 
@@ -150,7 +128,7 @@ class BFGSTest(parameterized.TestCase):
         output_dim = 1
 
         agent = BFGSAgent(buffer_size=buffer_size,
-                            obs_noise=obs_noise)
+                          obs_noise=obs_noise)
         params = jnp.zeros((input_dim, output_dim))
 
         belief = agent.init_state(params)

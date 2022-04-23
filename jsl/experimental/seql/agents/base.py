@@ -114,12 +114,13 @@ class Agent:
         # P(s,n) = p(y(n,:) | x(n,:), theta(s)) = sum_c p(y(n,c) | x(n,:), theta(s))
         # P(n) = mean_s P(s,n)
         # Returns L(n) = log P(n)
+        N = len(X)
 
         def logprob_fn(key):
             params_sample = self.sample_params(key, belief)
             # distribution  over batch size N
             pred_dist = self.predictive_distribution_given_params(params_sample, X)
-            logprobs = pred_dist.log_prob(Y).reshape(Y.shape)  # (N,1)
+            logprobs = pred_dist.log_prob(Y).reshape((N, -1))  # (N,1)
             return logprobs
 
         keys = random.split(key, nsamples_params)
@@ -160,9 +161,12 @@ class Agent:
 
         return posterior_predictive_density
 
-    def posterior_predictive_mean(self, key, x) -> chex.Array:
-        return jnp.mean(self.posterior_predictive_samples(key, x))
+    def posterior_predictive_mean(self, key,belief, x) -> chex.Array:
+        samples = self.posterior_predictive_sample(key, belief, x, 10, 10)
+        samples = samples.reshape((-1, len(x)))
+        return jnp.mean(samples, axis=0)
 
-    def posterior_predictive_mean_and_var(self, key, x) -> chex.Array:
-        samples = self.posterior_predictive_samples(key, x)
-        return jnp.mean(samples), jnp.var(samples)
+    def posterior_predictive_mean_and_var(self, key, belief, x) -> chex.Array:
+        samples = self.posterior_predictive_sample(key,belief, x, 10, 10)
+        samples = samples.reshape((-1, len(x)))
+        return jnp.mean(samples, axis=0), jnp.var(samples, axis=0)

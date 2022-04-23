@@ -14,6 +14,7 @@ from jsl.experimental.seql.utils import train
 from jsl.experimental.seql.agents.base import Agent
 from jsl.experimental.seql.environments.sequential_data_env import SequentialDataEnvironment
 
+
 class MLP(nn.Module):
     nclasses: int
 
@@ -60,6 +61,32 @@ class LeNet5(nn.Module):
         return x.squeeze()
 
 
+def set_ax_properties(ax):
+    # Turn off axis lines and ticks of the big subplot
+    # obs alpha is 0 in RGBA string!
+    ax.tick_params(labelcolor=(1., 1., 1., 0.0),
+                   top='off',
+                   bottom='off',
+                   left='off',
+                   right='off')
+    # removes the white frame
+    ax._frameon = False
+
+
+def get_fig_and_axes(nrows, ncols, figsize):
+    if nrows != 1:
+        fig, axes = plt.subplots(nrows=nrows,
+                                     ncols=1,
+                                     figsize=figsize)
+    else:
+        fig, axes = plt.subplots(nrows=nrows,
+                                     ncols=ncols,
+                                     figsize=figsize)
+        axes = axes.flatten()
+
+    return fig, axes
+
+
 def run_experiment(key: chex.PRNGKey,
                    agents: List[Agent],
                    env: SequentialDataEnvironment,
@@ -74,31 +101,14 @@ def run_experiment(key: chex.PRNGKey,
                    callback_fn: Callable,
                    figsize: Tuple[int, int] = (56, 48),
                    **init_kwargs):
-
     batch_agents_included = "batch_agents" in init_kwargs
-
-    if nrows != 1:
-        fig, big_axes = plt.subplots(nrows=nrows,
-                                     ncols=1,
-                                     figsize=figsize)
-    else:
-        fig, big_axes = plt.subplots(nrows=nrows,
-                                     ncols=ncols,
-                                     figsize=figsize)
-        big_axes = big_axes.flatten()
+    fig, big_axes = get_fig_and_axes(nrows, ncols, figsize)
 
     for idx, (big_ax, (agent_name, agent)) in enumerate(zip(big_axes, agents.items())):
         big_ax.set_title(agent_name.upper(), fontsize=36, y=1.2)
+
         if nrows != 1:
-            # Turn off axis lines and ticks of the big subplot
-            # obs alpha is 0 in RGBA string!
-            big_ax.tick_params(labelcolor=(1., 1., 1., 0.0),
-                               top='off',
-                               bottom='off',
-                               left='off',
-                               right='off')
-            # removes the white frame
-            big_ax._frameon = False
+            set_ax_properties(big_ax)
 
         params = initialize_params(agent_name, **init_kwargs)
         belief = agent.init_state(*params)

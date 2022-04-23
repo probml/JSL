@@ -19,7 +19,8 @@ from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler
     make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.experiment_utils import run_experiment
 from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
+
 
 plt.style.use("seaborn-poster")
 
@@ -37,11 +38,11 @@ def negative_mean_square_error(params, inputs, outputs, model_fn, strength=0.):
 
 
 def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.):
-    return mse(params, inputs, outputs, model_fn) + strength * jnp.sum(params ** 2)
+    return mean_squared_error(params, inputs, outputs, model_fn) + strength * jnp.sum(params ** 2)
 
 
 def energy_fn(params, data, model_fn, strength=0.):
-    return mse(params, *data, model_fn) + strength * jnp.sum(params ** 2)
+    return mean_squared_error(params, *data, model_fn) + strength * jnp.sum(params ** 2)
 
 
 def callback_fn(agent, env, agent_name, **kwargs):
@@ -56,21 +57,23 @@ def callback_fn(agent, env, agent_name, **kwargs):
                                    kwargs["ncols"],
                                    subplot_idx)
 
-    belief = kwargs["belief_state"]
+    outs = agent.posterior_predictive_mean_and_var(random.PRNGKey(0),
+                                                   kwargs["belief"],
+                                                   env.X_test[kwargs["t"]])
 
     plot_regression_posterior_predictive(ax,
-                                         agent,
+                                         outs,
                                          env,
-                                         belief,
                                          agent_name,
                                          t=kwargs["t"])
     if "title" in kwargs:
         ax.set_title(kwargs["title"], fontsize=32)
     else:
         ax.set_title("t={}".format(kwargs["t"]), fontsize=32)
-
+    print(agent_name)
     plt.tight_layout()
     plt.savefig("jaks.png")
+    plt.show()
 
 
 def initialize_params(agent_name, **kwargs):
@@ -180,14 +183,14 @@ def main():
     optimizer = optax.adam(1e-1)
 
     nepochs = 4
-    sgd = SGDAgent(mse,
+    sgd = SGDAgent(mean_squared_error,
                    model_fn,
                    optimizer=optimizer,
                    obs_noise=obs_noise,
                    nepochs=nepochs,
                    buffer_size=buffer_size)
 
-    batch_sgd = SGDAgent(mse,
+    batch_sgd = SGDAgent(mean_squared_error,
                          model_fn,
                          optimizer=optimizer,
                          obs_noise=obs_noise,
@@ -256,6 +259,7 @@ def main():
                            buffer_size=buffer_size)
 
     agents = {
+        "sgld": sgld,
         "kf": kf,
         "exact bayes": bayes,
         "sgd": sgd,
@@ -263,7 +267,6 @@ def main():
         "bfgs": bfgs,
         "lbfgs": lbfgs,
         "nuts": nuts,
-        "sgld": sgld,
     }
 
     batch_agents = {
@@ -289,6 +292,7 @@ def main():
                    batch_size,
                    ntrain,
                    nsteps,
+                   10, 10,
                    nrows,
                    ncols,
                    callback_fn=callback_fn,
@@ -314,6 +318,7 @@ def main():
                    batch_size,
                    ntrain,
                    ntrain,
+                   10, 10,
                    nrows,
                    ncols,
                    callback_fn=callback_fn,

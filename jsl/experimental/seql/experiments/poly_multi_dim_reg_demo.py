@@ -20,7 +20,7 @@ from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, \
     make_random_poly_regression_environment
-from jsl.experimental.seql.utils import mse
+from jsl.experimental.seql.utils import mean_squared_error
 
 plt.style.use("seaborn-poster")
 
@@ -38,11 +38,11 @@ def negative_mean_square_error(params, inputs, outputs, model_fn, strength=0.):
 
 
 def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.):
-    return mse(params, inputs, outputs, model_fn) + strength * jnp.sum(params ** 2)
+    return mean_squared_error(params, inputs, outputs, model_fn) + strength * jnp.sum(params ** 2)
 
 
 def energy_fn(params, data, model_fn, strength=0.):
-    return mse(params, *data, model_fn) + strength * jnp.sum(params ** 2)
+    return mean_squared_error(params, *data, model_fn) + strength * jnp.sum(params ** 2)
 
 
 losses = []
@@ -117,7 +117,7 @@ def main():
     optimizer = optax.adam(1e-1)
 
     nepochs = 4
-    sgd = sgd_agent(mse,
+    sgd = sgd_agent(mean_squared_error,
                     model_fn,
                     optimizer=optimizer,
                     obs_noise=obs_noise,

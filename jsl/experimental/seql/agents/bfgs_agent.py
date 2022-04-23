@@ -11,7 +11,7 @@ import warnings
 
 from jsl.experimental.seql.agents.agent_utils import Memory
 from jsl.experimental.seql.agents.base import Agent
-from jsl.experimental.seql.utils import mse
+from jsl.experimental.seql.utils import mean_squared_error
 
 Params = Any
 
@@ -55,13 +55,13 @@ class Info(NamedTuple):
 class BFGSAgent(Agent):
 
     def __init__(self,
-                 objective_fn: ObjectiveFn = mse,
+                 objective_fn: ObjectiveFn = mean_squared_error,
                  model_fn: ModelFn = lambda mu, x: x @ mu,
-                 tol: Optional[float] = None,
-                 options: Optional[Dict[str, Any]] = None,
                  min_n_samples: int = 1,
                  buffer_size: int = jnp.inf,
                  obs_noise: float = 0.01,
+                 tol: Optional[float] = None,
+                 options: Optional[Dict[str, Any]] = None,
                  is_classifier: bool = False):
         super(BFGSAgent, self).__init__(is_classifier)
         self.partial_objective_fn = partial(objective_fn,

@@ -17,7 +17,7 @@ from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_mlp, make_regression_mlp_environment
 from jsl.experimental.seql.experiments.experiment_utils import run_experiment
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
 from jsl.experimental.seql.experiments.plotting import colors
 
 plt.style.use("seaborn-poster")
@@ -32,11 +32,11 @@ def negative_mean_square_error(params, inputs, outputs, model_fn, strength=0.2):
 
 
 def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.2):
-    return mse(params, inputs, outputs, model_fn) + strength * logprior_fn(params) / len(inputs)
+    return mean_squared_error(params, inputs, outputs, model_fn) + strength * logprior_fn(params) / len(inputs)
 
 
 def energy_fn(params, data, model_fn, strength=0.2):
-    return mse(params, *data, model_fn) + strength * logprior_fn(params) / len(data[0])
+    return mean_squared_error(params, *data, model_fn) + strength * logprior_fn(params) / len(data[0])
 
 
 losses = []
@@ -119,14 +119,14 @@ def main():
     optimizer = optax.adam(1e-3)
 
     nepochs = 4
-    sgd = sgd_agent(mse,
+    sgd = sgd_agent(mean_squared_error,
                     model_fn,
                     optimizer=optimizer,
                     obs_noise=obs_noise,
                     nepochs=nepochs,
                     buffer_size=buffer_size)
 
-    batch_sgd = sgd_agent(mse,
+    batch_sgd = sgd_agent(mean_squared_error,
                           model_fn,
                           optimizer=optimizer,
                           obs_noise=obs_noise,

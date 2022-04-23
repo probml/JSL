@@ -18,7 +18,7 @@ from jsl.experimental.seql.agents.sgd_agent import sgd_agent
 from jsl.experimental.seql.agents.sgmcmc_sgld_agent import sgld_agent
 from jsl.experimental.seql.environments.base import make_evenly_spaced_x_sampler, make_random_linear_regression_environment, make_random_poly_regression_environment
 from jsl.experimental.seql.experiments.plotting import plot_regression_posterior_predictive
-from jsl.experimental.seql.utils import mse, train
+from jsl.experimental.seql.utils import mean_squared_error, train
 
 def model_fn(w, x):
     return x @ w
@@ -27,10 +27,10 @@ def logprior_fn(params):
     return 0.
 
 def negative_mean_square_error(params, x, y, model_fn):
-    return -mse(params, x, y, model_fn)
+    return -mean_squared_error(params, x, y, model_fn)
 
 def penalized_objective_fn(params, inputs, outputs, model_fn, strength=0.):
-    return mse(params, inputs, outputs, model_fn) + strength * jnp.sum(params**2)
+    return mean_squared_error(params, inputs, outputs, model_fn) + strength * jnp.sum(params ** 2)
 
 def callback_fn(agent, env, agent_name, **kwargs):
     
@@ -167,19 +167,19 @@ def main():
     optimizer = optax.sgd(1e-1)
 
     nepochs = 10
-    sgd = sgd_agent(mse,
+    sgd = sgd_agent(mean_squared_error,
                     model_fn,
                     optimizer=optimizer,
                     obs_noise=obs_noise,
                     nepochs=nepochs,
                     buffer_size=buffer_size)
     
-    batch_sgd = sgd_agent(mse,
-                        model_fn,
-                        optimizer=optimizer,
-                        obs_noise=obs_noise,
-                        buffer_size=ntrain,
-                        nepochs=nepochs*nsteps)
+    batch_sgd = sgd_agent(mean_squared_error,
+                          model_fn,
+                          optimizer=optimizer,
+                          obs_noise=obs_noise,
+                          buffer_size=ntrain,
+                          nepochs=nepochs*nsteps)
 
     nsamples, nwarmup = 200, 100
     nuts = blackjax_nuts_agent(nuts_key,
