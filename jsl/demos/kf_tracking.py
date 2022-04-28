@@ -101,6 +101,7 @@ def main():
     Sigma0 = jnp.eye(state_size) * 1.0
 
     lds_instance = LDS(A, C, Q, R, mu0, Sigma0)
+
     result = sample_filter_smooth(key, lds_instance, timesteps)
 
     l2_filter = jnp.linalg.norm(result["z_hist"][:, :2] - result["mu_hist"][:, :2], 2)
