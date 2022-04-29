@@ -1,5 +1,5 @@
 # Jax implementation of a Linear Dynamical System
-# Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (@murphyk)
+# Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
 from jax import config
 
 config.update('jax_default_matmul_precision', 'float32')
@@ -9,14 +9,13 @@ import jax.numpy as jnp
 from jax.random import multivariate_normal, split
 from jax.scipy.linalg import solve
 from jax import tree_map, lax, vmap
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from typing import Union, Callable
 from tensorflow_probability.substrates import jax as tfp
 
 tfd = tfp.distributions
 
-ArrayOrFn = Union[chex.Array, Callable]
 
 @dataclass
 class LDS:
@@ -27,41 +26,34 @@ class LDS:
     the model parameters are known.
 
     The LDS evolves as follows:
-    x_t = A x_t-1 + w_t; w_t ~ N(state_offset, Q)
-    y_t = C x_t + v_t; v_t ~ N(obs_offset, R)
+    x_t = A x_t-1 + w_t; w_t ~ N(0, Q)
+    y_t = C x_t + v_t; v_t ~ N(0, R)
 
     with initial state x_0 ~ N(mu, Sigma)
 
     Parameters
     ----------
     A: array(state_size, state_size)
-        Transition matrix or function that depends on time
+        Transition matrix
     C: array(observation_size, state_size)
         Constant observation matrix or function that depends on time
     Q: array(state_size, state_size)
-        Transition covariance matrix or function that depends on time
+        Transition covariance matrix
     R: array(observation_size, observation_size)
-        Observation covariance or function that depends on time
+        Observation covariance
     mu: array(state_size)
         Mean of initial configuration
     Sigma: array(state_size, state_size) or 0
         Covariance of initial configuration. If value is set
         to zero, the initial state will be completely determined
         by mu0
-    
     """
-    A: ArrayOrFn
-    C: ArrayOrFn
-    Q: ArrayOrFn
-    R: ArrayOrFn
+    A: chex.Array
+    C: Union[chex.Array, Callable]
+    Q: chex.Array
+    R: chex.Array
     mu: chex.Array
     Sigma: chex.Array
-
-    state_offset: ArrayOrFn = None
-    obs_offset: ArrayOrFn = None
-
-    nstates: int = field(init=False)
-    nobs: int = field(init=False)
 
 
     def get_trans_mat_of(self, t: int):
@@ -87,25 +79,6 @@ class LDS:
             return self.R(t)
         else:
             return self.R
-
-    def get_state_offset_of(self, t: int):
-        if self.state_offset is None:
-          return jnp.zeros((self.nstates))
-        elif callable(self.state_offset):
-            return self.state_offset(t)
-        else:
-            return self.state_offset
-
-    def get_obs_offset_of(self, t: int):
-        if self.obs_offset is None:
-            return jnp.zeros((self.nobs))
-        elif callable(self.obs_offset):
-            return self.obs_offset(t)
-        else:
-            return self.obs_offset
-
-    def __post_init__(self):
-            self.nobs, self.nstates = self.C.shape
 
 
     def sample(self,
@@ -143,28 +116,22 @@ class LDS:
 
         # Generate all future noise terms
         zeros_state = jnp.zeros(state_size)
-        Q = self.get_system_noise_of(0) # assumed static
-        R = self.get_observation_noise_of(0) # assumed static
-  
+        R = self.get_observation_noise_of(0)
 
-        #observation_size = timesteps if isinstance(R, int) else R.shape[0]
-        observation_size = R.shape[0]
+        observation_size = timesteps if isinstance(R, int) else R.shape[0]
         zeros_obs = jnp.zeros(observation_size)
 
-        system_noise = multivariate_normal(key_system_noise, zeros_state, Q, (timesteps, n_samples))
+        system_noise = multivariate_normal(key_system_noise, zeros_state,
+                                           self.get_system_noise_of(0), (timesteps, n_samples))
         obs_noise = multivariate_normal(key_obs_noise, zeros_obs, R, (timesteps, n_samples))
 
-        # observation at time t=0
         obs_t = jnp.einsum("ij,sj->si", self.get_obs_mat_of(0), state_t) + obs_noise[0]
 
         def sample_step(state, inps):
             system_noise_t, obs_noise_t, t = inps
             A = self.get_trans_mat_of(t)
-            C = self.get_obs_mat_of(t)
             state_new = state @ A.T + system_noise_t
-            #state_new = state_new + self.get_state_offset_of(t)
-            obs_new = state_new @ C.T + obs_noise_t
-            #obs_new = obs_new + self.get_obs_offset_of(t)
+            obs_new = state_new @ self.get_obs_mat_of(t).T + obs_noise_t
             return state_new, (state_new, obs_new)
 
         timesteps = jnp.arange(1, timesteps)
@@ -191,8 +158,7 @@ def kalman_step(state, obs, params):
     Sigma_cond = A @ Sigma @ A.T + Q
 
     # \mu_{t |t-1} and xn|{n-1}
-    mu_cond = A @ mu 
-    #mu_cond = mu_cond + params.get_state_offset_of(t)
+    mu_cond = A @ mu
 
     Ct = params.get_obs_mat_of(t)
     R = params.get_observation_noise_of(t)
@@ -200,9 +166,7 @@ def kalman_step(state, obs, params):
     St = Ct @ Sigma_cond @ Ct.T + R
     Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
 
-    innovation = Ct @ mu_cond 
-    #innovation = innovation + params.get_obs_offset_of(t) 
-    mu = mu_cond + Kt @ innovation
+    mu = mu_cond + Kt @ (obs - Ct @ mu_cond)
 
     #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
     tmp = (I - Kt @ Ct)
