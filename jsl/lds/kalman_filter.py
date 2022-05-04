@@ -2,7 +2,7 @@
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (@murphyk)
 from jax import config
 
-config.update('jax_default_matmul_precision', 'float32')
+config.update("jax_default_matmul_precision", "float32")
 
 import chex
 import jax.numpy as jnp
@@ -202,7 +202,7 @@ def kalman_step(state, obs, params):
 
     innovation = Ct @ mu_cond 
     #innovation = innovation + params.get_obs_offset_of(t) 
-    mu = mu_cond + Kt @ innovation
+    mu = mu_cond + Kt @ (obs - innovation)
 
     #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
     tmp = (I - Kt @ Ct)
