@@ -168,9 +168,10 @@ def kalman_step(state, obs, params):
     St = Ct @ Sigma_cond @ Ct.T + R
     Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
 
-    innovation = Ct @ mu_cond 
-    innovation = innovation + params.get_obs_offset_of(t)
-    mu = mu_cond + Kt @ (obs - innovation)
+    pred_obs = Ct @ mu_cond 
+    pred_obs = pred_obs + params.get_obs_offset_of(t)
+    innovation = obs - pred_obs
+    mu = mu_cond + Kt @ innovation
 
     #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
     tmp = (I - Kt @ Ct)
