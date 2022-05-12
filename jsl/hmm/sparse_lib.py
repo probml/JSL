@@ -2,8 +2,8 @@
 jax.experimental.sparse-compatible Hidden Markov Model (HMM)
 """
 
-def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix, *vals):
-    local_evidence = local_evidence_multiple(y, *vals)
+def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
+    local_evidence = local_evidence_multiple(y)
     alpha_next = local_evidence * (transition_matrix.T @ alpha_prev)
     normalisation_cst = alpha_next.sum()
     alpha_next = alpha_next / normalisation_cst
@@ -16,9 +16,9 @@ def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix, *vals)
     return alpha_next, carry
 
 
-def beta_step(beta_next, y, local_evidence_multiple, transition_matrix, *vals):
+def beta_step(beta_next, y, local_evidence_multiple, transition_matrix):
     norm_cst = beta_next.sum()
-    local_evidence = local_evidence_multiple(y, *vals)
+    local_evidence = local_evidence_multiple(y)
     beta_prev = transition_matrix @ (local_evidence * beta_next)
     beta_prev = beta_prev / norm_cst
         
@@ -28,4 +28,3 @@ def beta_step(beta_next, y, local_evidence_multiple, transition_matrix, *vals):
     }
     
     return beta_prev, carry
-
