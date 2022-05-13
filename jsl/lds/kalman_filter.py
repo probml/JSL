@@ -1,8 +1,8 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna)
-from jax import config
 
-config.update("jax_default_matmul_precision", "float32")
+from jax import config
+#config.update("jax_default_matmul_precision", "float32")
 
 import chex
 import jax.numpy as jnp
