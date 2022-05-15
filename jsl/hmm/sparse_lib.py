@@ -4,7 +4,7 @@ jax.experimental.sparse-compatible Hidden Markov Model (HMM)
 import jax
 import chex
 from functools import partial
-from typing import Callable
+from typing import Callable, Tuple
 
 def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
     local_evidence = local_evidence_multiple(y)
@@ -23,7 +23,7 @@ def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
 def alpha_forward(obs: chex.Array,
                   local_evidence: Callable[[chex.Array], chex.Array],
                   transition_matrix: chex.Array,
-                  alpha_init: chex.Array) -> (chex.Array, chex.Array):
+                  alpha_init: chex.Array) -> Tuple[chex.Array, chex.Array]:
     """
     Compute the alpha-forward (forward-filter) pass for a given observation sequence.
     """
@@ -51,7 +51,7 @@ def beta_step(beta_next, y, local_evidence_multiple, transition_matrix):
 def beta_backward(obs: chex.Array,
                   local_evidence: Callable[[chex.Array], chex.Array],
                   transition_matrix: chex.Array,
-                  alpha_last: chex.Array) -> (chex.Array, chex.Array):
+                  alpha_last: chex.Array) -> Tuple[chex.Array, chex.Array]:
     """
     Compute the forward-filter and backward-smoother pass for a
     given observation sequence.
