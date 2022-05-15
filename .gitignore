@@ -1,3 +1,4 @@
+output/
 *.mp4
 *.pdf
 .DS_Store
