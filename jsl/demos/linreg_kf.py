@@ -11,10 +11,8 @@
 # We show that the result is equivalent to batch (offline) Bayesian inference.
 
 import jax.numpy as jnp
-
 import matplotlib.pyplot as plt
 from numpy.linalg import inv
-
 from jsl.lds.kalman_filter import LDS, kalman_filter
 
 
@@ -71,11 +69,11 @@ def posterior_lreg(X, y, R, mu0, Sigma0):
     * array(n_obs, dimension, dimension)
         Posterior covariance matrix
     """
-    Sn_bayes_inv = inv(Sigma0) + X.T @ X / R
-    Sn_bayes = inv(Sn_bayes_inv)
-    mn_bayes = Sn_bayes @ (inv(Sigma0) @ mu0 + X.T @ y / R)
+    Sn_bayes_inv = inv(Sigma0) + X.T @ X / R.item()
+    b = inv(Sigma0) @ mu0 + X.T @ y / R.item()
+    mn_bayes = jnp.linalg.solve(Sn_bayes_inv, b)
 
-    return mn_bayes, Sn_bayes
+    return mn_bayes, Sn_bayes_inv
 
 def main():
     n_obs = 21
@@ -87,6 +85,7 @@ def main():
     Sigma0 = jnp.eye(2) * 10.
 
     Q, R = 0, 1
+    Q, R = jnp.asarray([[Q]]), jnp.asarray([[R]])
     # Data from original matlab example
     y = jnp.array([2.4865, -0.3033, -4.0531, -4.3359, -6.1742, -5.604, -3.5069, -2.3257, -4.6377,
                    -0.2327, -1.9858, 1.0284, -2.264, -0.4508, 1.1672, 6.6524, 4.1452, 5.2677, 6.3403, 9.6264, 14.7842])
@@ -98,7 +97,8 @@ def main():
     w0_err, w1_err = jnp.sqrt(Sigma_hist[:, [0, 1], [0, 1]].T)
 
     # Offline estimation
-    (w0_post, w1_post), Sigma_post = posterior_lreg(X, y, R, mu0, Sigma0)
+    (w0_post, w1_post), inv_Sigma_post = posterior_lreg(X, y, R, mu0, Sigma0)
+    Sigma_post = inv(inv_Sigma_post)
     w0_std, w1_std = jnp.sqrt(Sigma_post[[0, 1], [0, 1]])
 
     dict_figures = {}
@@ -119,7 +119,6 @@ def main():
     ax.set_ylim(-8, 4)
     ax.set_xlim(-0.5, n_obs)
     dict_figures["linreg_online_kalman"] = fig
-    plt.savefig("prev.png")
     return dict_figures
 
 
