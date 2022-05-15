@@ -2,7 +2,9 @@
 jax.experimental.sparse-compatible Hidden Markov Model (HMM)
 """
 import jax
+import chex
 from functools import partial
+from typing import Callable
 
 def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
     local_evidence = local_evidence_multiple(y)
@@ -18,7 +20,13 @@ def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
     return alpha_next, carry
 
 
-def alpha_forward(obs, local_evidence, transition_matrix, alpha_init):
+def alpha_forward(obs: chex.Array,
+                  local_evidence: Callable[[chex.Array], chex.Array],
+                  transition_matrix: chex.Array,
+                  alpha_init: chex.Array) -> (chex.Array, chex.Array):
+    """
+    Compute the alpha-forward (forward-filter) pass for a given observation sequence.
+    """
     alpha_step_part = partial(alpha_step,
                               local_evidence_multiple=local_evidence,
                               transition_matrix=transition_matrix)
@@ -40,7 +48,14 @@ def beta_step(beta_next, y, local_evidence_multiple, transition_matrix):
     return beta_prev, carry
 
 
-def beta_backward(obs, local_evidence, transition_matrix, alpha_last):
+def beta_backward(obs: chex.Array,
+                  local_evidence: Callable[[chex.Array], chex.Array],
+                  transition_matrix: chex.Array,
+                  alpha_last: chex.Array) -> (chex.Array, chex.Array):
+    """
+    Compute the forward-filter and backward-smoother pass for a
+    given observation sequence.
+    """
     beta_step_part = partial(beta_step,
                               local_evidence_multiple=local_evidence,
                               transition_matrix=transition_matrix)
