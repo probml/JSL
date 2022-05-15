@@ -6,6 +6,7 @@ import chex
 from functools import partial
 from typing import Callable, Tuple, Dict
 
+
 def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
     local_evidence = local_evidence_multiple(y)
     alpha_next = local_evidence * (transition_matrix.T @ alpha_prev)
@@ -20,20 +21,6 @@ def alpha_step(alpha_prev, y, local_evidence_multiple, transition_matrix):
     return alpha_next, carry
 
 
-def alpha_forward(obs: chex.Array,
-                  local_evidence: Callable[[chex.Array], chex.Array],
-                  transition_matrix: chex.Array,
-                  alpha_init: chex.Array) -> Tuple[chex.Array, chex.Array]:
-    """
-    Compute the alpha-forward (forward-filter) pass for a given observation sequence.
-    """
-    alpha_step_part = partial(alpha_step,
-                              local_evidence_multiple=local_evidence,
-                              transition_matrix=transition_matrix)
-    alpha_last, alpha_hist = jax.lax.scan(alpha_step_part, alpha_init, obs)
-    return alpha_last, alpha_hist
-
-
 def beta_step(beta_next, y, local_evidence_multiple, transition_matrix):
     norm_cst = beta_next.sum()
     local_evidence = local_evidence_multiple(y)
@@ -46,6 +33,20 @@ def beta_step(beta_next, y, local_evidence_multiple, transition_matrix):
     }
     
     return beta_prev, carry
+
+
+def alpha_forward(obs: chex.Array,
+                  local_evidence: Callable[[chex.Array], chex.Array],
+                  transition_matrix: chex.Array,
+                  alpha_init: chex.Array) -> Tuple[chex.Array, chex.Array]:
+    """
+    Compute the alpha-forward (forward-filter) pass for a given observation sequence.
+    """
+    alpha_step_part = partial(alpha_step,
+                              local_evidence_multiple=local_evidence,
+                              transition_matrix=transition_matrix)
+    alpha_last, alpha_hist = jax.lax.scan(alpha_step_part, alpha_init, obs)
+    return alpha_last, alpha_hist
 
 
 def beta_backward(obs: chex.Array,
@@ -75,7 +76,7 @@ def forward_backward(obs: chex.Array,
     _, beta_hist = beta_backward(obs, local_evidence, transition_matrix, alpha_last)
 
     filter_hist = alpha_hist["alpha"]
-    smooth_hist = alpha_hist["alpha"] * beta_hist["beta"]
+    smooth_hist = filter_hist * beta_hist["beta"]
     smooth_hist = smooth_hist / smooth_hist.sum(axis=1, keepdims=True)
 
     res = {
