@@ -1,0 +1,17 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: JSL
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Gerardo
+    family-names: Duran-Martin
+  - given-names: Kevin
+    family-names: Murphy
+  - given-names: Aleyna
+    family-names: Kara
+repository: 'https://github.com/probml/JSL'
