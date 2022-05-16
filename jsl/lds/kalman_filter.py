@@ -1,10 +1,5 @@
 # Jax implementation of a Linear Dynamical System
 # Author:  Gerardo Durán-Martín (@gerdm), Aleyna Kara(@karalleyna), Kevin Murphy (@murphyk)
-from jax import config
-
-
-from jax import config
-#config.update("jax_default_matmul_precision", "float32")
 
 import chex
 import jax.numpy as jnp
@@ -14,9 +9,6 @@ from jax import tree_map, lax, vmap
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Union, Callable
-from tensorflow_probability.substrates import jax as tfp
-
-tfd = tfp.distributions
 
 ArrayOrFn = Union[chex.Array, Callable]
 
@@ -107,7 +99,7 @@ class LDS:
             return self.obs_offset
 
     def __post_init__(self):
-            self.nobs, self.nstates = self.C.shape
+            self.nobs, self.nstates = self.get_obs_mat_of(0).shape
 
 
     def sample(self,
