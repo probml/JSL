@@ -173,41 +173,123 @@ class LDS:
         return state_hist, obs_hist
 
 
-def kalman_step(state, obs, params):
-    I = jnp.eye(len(params.mu))
-    mu, Sigma, t = state
+def kalman_predict(mu, Sigma, t, params):
+    """
+    Calculate the Kalman filter predict step.
+
+    Parameters
+    ----------
+    mu: array(state_size)
+         Posterior estimate of mu from previous time step, mu_{t-1}.
+    Sigma: array(state_size, state_size)
+         Posterior estimate of Sigma from previous time step, Sigma_{t-1}.
+    t: int
+    params: LDS
+         Linear Dynamical System object containing parameters.
+
+    Returns
+    -------
+    * array(state_size):
+        Predicted mean at current time step, mu_{t|t-1}
+    * array(state_size, state_size)
+        Predicted covariance at current time step, Sigma_{t|t-1}
+    """
 
     # \Sigma_{t|t-1}
     A = params.get_trans_mat_of(t)
     Q = params.get_system_noise_of(t)
 
-    Sigma_cond = A @ Sigma @ A.T + Q
+    Sigma_pred = A @ Sigma @ A.T + Q
 
     # \mu_{t |t-1} and xn|{n-1}
-    mu_cond = A @ mu 
-    mu_cond = mu_cond + params.get_state_offset_of(t)
+    mu_pred = A @ mu
+    mu_pred = mu_pred + params.get_state_offset_of(t)
+    return mu_pred, Sigma_pred
+
+
+def kalman_update(mu_pred, Sigma_pred, obs, t, params):
+    """
+    Calculate the Kalman filter update step.
+
+    Parameters
+    ----------
+    mu_pred: array(state_size)
+         Prediction of mu_{t|t-1} from mu_{t-1} and dynamics.
+    Sigma_pred: array(state_size, state_size)
+         Prediction of Sigma_{t|t-1} from Sigma_{t-1} and dynamics.
+    obs: array(observation_size)
+         Observation at time, t.
+    t: int
+    params: LDS
+         Linear Dynamical System object containing parameters.
+
+    Returns
+    -------
+    * array(state_size):
+        Updated mean mu_t
+    * array(state_size, state_size)
+        Updated covariance Sigma_t
+    """
 
     Ct = params.get_obs_mat_of(t)
     R = params.get_observation_noise_of(t)
-    
-    St = Ct @ Sigma_cond @ Ct.T + R
-    Kt = solve(St, Ct @ Sigma_cond, sym_pos=True).T
 
-    pred_obs = Ct @ mu_cond 
+    St = Ct @ Sigma_pred @ Ct.T + R
+    Kt = solve(St, Ct @ Sigma_pred, sym_pos=True).T
+
+    pred_obs = Ct @ mu_pred
     pred_obs = pred_obs + params.get_obs_offset_of(t)
     innovation = obs - pred_obs
-    mu = mu_cond + Kt @ innovation
+    mu = mu_pred + Kt @ innovation
 
     #  More stable solution is (I − KtCt)Σt|t−1(I − KtCt)T + KtRtKTt
-    tmp = (I - Kt @ Ct)
-    Sigma = tmp @ Sigma_cond @ tmp.T + Kt @ (R @ Kt.T)
+    I = jnp.eye(len(params.mu))
+    tmp = I - Kt @ Ct
+    Sigma = tmp @ Sigma_pred @ tmp.T + Kt @ (R @ Kt.T)
 
-    return (mu, Sigma, t+1), (mu, Sigma, mu_cond, Sigma_cond)
+    return mu, Sigma
 
 
-def kalman_filter(params: LDS,
-                  x_hist: chex.Array,
-                  return_history: bool = True):
+def kalman_step(state, obs, params):
+    """
+    A single step of the Kalman filter to calculate mu_t, Sigma_t given estimates 
+     at previous time step and observation and system parameters at time t.
+
+    Parameters
+    ----------
+    state: tuple(mu, Sigma, t).
+        mu: array(state_size).
+            Posterior mu from previous time step, mu_{t-1}.
+        Sigma: array(state_size, state_size)
+            Posterior estimate of Sigma from previous time step, Sigma_{t-1}.
+        t: int
+    obs: array(observation_size)
+         Observation at time, t.
+    params: LDS
+         Linear Dynamical System object containing parameters.
+
+    Returns
+    -------
+    * tuple(mu, Sigma, t)
+    * tuple(mu, Sigma, mu_pred, Sigma_pred)
+        mu: array(state_size).
+            Posterior mu from current time step, mu_t.
+        Sigma: array(state_size, state_size)
+            Posterior Sigma from current time step, Sigma_t.
+        t: int.
+        mu_pred: array(state_size).
+            Predicted mean mu_{t|t-1}
+        Sigma_pred: array(state_size, state_size).
+            Predicted covariance Sigma_{t|t-1}
+    """
+    mu, Sigma, t = state
+    mu_pred, Sigma_pred = kalman_predict(mu, Sigma, t, params)
+    mu, Sigma = kalman_update(mu_pred, Sigma_pred, obs, t, params)
+
+    return (mu, Sigma, t + 1), (mu, Sigma, mu_pred, Sigma_pred)
+
+
+def kalman_filter(params: LDS, x_hist: chex.Array, return_history: bool = True):
     """
     Compute the online version of the Kalman-Filter, i.e,
     the one-step-ahead prediction for the hidden state or the
@@ -223,21 +305,31 @@ def kalman_filter(params: LDS,
     Returns
     -------
     * array(timesteps, state_size):
-        Filtered means mut
+        Filtered means mu_{1:T}
     * array(timesteps, state_size, state_size)
-        Filtered covariances Sigmat
+        Filtered covariances Sigma_{1:T}
     * array(timesteps, state_size)
-        Filtered conditional means mut|t-1
+        Filtered conditional means mu_{t|t-1} for t=1, ..., T.
     * array(timesteps, state_size, state_size)
-        Filtered conditional covariances Sigmat|t-1
+        Filtered conditional covariances Sigma_{t|t-1} for t=1, ..., T.
     """
     mu0, Sigma0 = params.mu, params.Sigma
+    x0 = x_hist[0, ...]
     initial_state = (mu0, Sigma0, 0)
+    # Filtering the first observation does not include a predict step.
+    mu0_post, Sigma0_post = kalman_update(mu0, Sigma0, x0, 0, params)
+
     kalman_step_run = partial(kalman_step, params=params)
-    (mun, Sigman, _), history = lax.scan(kalman_step_run, initial_state, x_hist)
+    (mu_T, Sigma_T, _), history = lax.scan(
+        kalman_step_run, (mu0_post, Sigma0_post, 1), x_hist[1:, ...]
+    )
     if return_history:
-        return history
-    return mun, Sigman, None, None
+        mu_hist, Sigma_hist, *pred_hist = history
+        # Add the initial update step to the history
+        mu_hist = jnp.vstack((mu0_post, mu_hist))
+        Sigma_hist = jnp.concatenate((Sigma0_post[None, ...], Sigma_hist))
+        return (mu_hist, Sigma_hist, *pred_hist)
+    return mu_T, Sigma_T, None, None
 
 
 def filter(params: LDS,
