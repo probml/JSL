@@ -1,7 +1,3 @@
-import os
-import sys
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-
 from jax import random
 from jax import numpy as jnp
 import numpy as np
@@ -9,7 +5,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 tfd = tfp.distributions
-from kalman_filter import LDS, kalman_filter
+from jsl.lds.kalman_filter import LDS, kalman_filter
 
 def tfp_filter(timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist):
     """ Perform filtering using tensorflow probability """
