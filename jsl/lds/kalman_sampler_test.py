@@ -1,17 +1,19 @@
+from jsl.lds.kalman_sampler import smooth_sampler
+
 from jax import random
 from jax import numpy as jnp
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 
-tfd = tfp.distributions 
+tfd = tfp.distributions
 from jsl.lds.kalman_filter import LDS, kalman_filter
 
 import pytest
 
-class TestKalmanFilters():
+class TestKalmanSmoother():
     # Utility functions
-    def tfp_filter(self, timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist):
+    def tfp_smoother(self, timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist):
         state_size, _ = A.shape
         observation_size, _ = C.shape
         transition_noise = tfd.MultivariateNormalDiag(
@@ -27,16 +29,20 @@ class TestKalmanFilters():
         )
 
         _, filtered_means, filtered_covs, _, _, _, _ = LGSSM.forward_filter(x_hist)
-        return jnp.array(filtered_means.numpy()), jnp.array(filtered_covs.numpy())
-    
+        smps = LGSSM.posterior_sample(x_hist, sample_shape=x_hist.shape[0])
+        return jnp.array(smps[:,:,0])
+
+
     def LDS_instance(self, timesteps, A, C, Q, R, mu0, Sigma0):
         return LDS(A, C, Q, R, mu0, Sigma0)
 
-    def jsl_filter(self, lds_instance, x_hist):
+    def jsl_smoother(self, lds_instance, key, x_hist):
         JSL_z_filt, JSL_Sigma_filt, _, _ = kalman_filter(lds_instance, x_hist)
-        return JSL_z_filt, JSL_Sigma_filt
+        s_jax = smooth_sampler(lds_instance, key, JSL_z_filt, JSL_Sigma_filt, n_samples=x_hist.shape[0])[:,:,0]
+        return s_jax
     
-    def test_kalman_filter(self):
+    # Test Kalman Smoother
+    def test_kalman_smoother(self):
         timesteps = 15
         key = random.PRNGKey(0)
         observation_noise_scale = 1.0
@@ -55,12 +61,11 @@ class TestKalmanFilters():
 
         z_hist, x_hist = lds.sample(key, timesteps)
 
-        # run tfp filtering
-        tfp_filtered_means, tfp_filtered_covs = self.tfp_filter(timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist)
+        s_tf = self.tfp_smoother(timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist)
+        s_jax = self.jsl_smoother(lds, key, x_hist)
 
-        # run jsl_filtering
-        jsl_filtered_means, jsl_filtered_covs = self.jsl_filter(lds, x_hist)
-
-        # Assert statements
-        assert jnp.allclose(jsl_filtered_means, tfp_filtered_means, rtol=1e-2)
-        assert jnp.allclose(jsl_filtered_covs, tfp_filtered_covs, rtol=1e-2)
+        mean_tf = jnp.mean(s_tf, axis=0)
+        mean_jax = jnp.mean(s_jax, axis=0)
+        
+        print(jnp.max(mean_tf - mean_jax))
+        assert jnp.allclose(mean_tf, mean_jax, atol=1)
