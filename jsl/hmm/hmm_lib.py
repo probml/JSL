@@ -5,6 +5,7 @@
 # This version is kept for historical purposes.
 # Author: Gerardo Duran-Martin (@gerdm), Aleyna Kara (@karalleyna), Kevin Murphy (@murphyk)
 
+
 from jax import lax
 from jax.scipy.special import logit
 from functools import partial
@@ -162,7 +163,7 @@ def hmm_sample_jax(params, seq_len, rng_key):
     obs_states = jnp.arange(n_obs)
 
     def draw_state(prev_state, key):
-        logits = logit(trans_mat[:, prev_state])
+        logits = logit(trans_mat[prev_state])
         state = jax.random.categorical(key, logits=logits.flatten(), shape=(1,))
         return state, state
 
@@ -170,7 +171,7 @@ def hmm_sample_jax(params, seq_len, rng_key):
     keys = jax.random.split(rng_state, seq_len - 1)
 
     final_state, states = jax.lax.scan(draw_state, initial_state, keys)
-    state_seq = jnp.append(jnp.array([initial_state]), states)
+    state_seq = jnp.append(initial_state, states)
 
     def draw_obs(z, key):
         obs = jax.random.choice(key, a=obs_states, p=obs_mat[z])
@@ -479,9 +480,9 @@ def hmm_viterbi_jax(params, obs_seq, length=None):
     if length is None:
         length = seq_len
 
-    trans_log_probs = jax.nn.log_softmax(jnp.log(params.trans_mat))
-    init_log_probs = jax.nn.log_softmax(jnp.log(params.init_dist))
-    obs_mat = jnp.log(params.obs_mat)
+    trans_log_probs = jax.nn.log_softmax(logit(params.trans_mat))
+    init_log_probs = jax.nn.log_softmax(logit(params.init_dist))
+    obs_mat = logit(params.obs_mat)
     n_states, *_ = obs_mat.shape
 
     first_log_prob = init_log_probs + obs_mat[:, obs_seq[0]]
