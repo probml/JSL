@@ -1,35 +1,35 @@
 from jax import random
 from jax import numpy as jnp
 import numpy as np
-import tensorflow as tf
-import tensorflow_probability as tfp
+import tensorflow_probability.substrates.jax.distributions as tfd
 
-tfd = tfp.distributions
-from jsl.lds.kalman_filter import LDS, kalman_filter
+from jsl.lds.kalman_filter import LDS, kalman_filter, kalman_smoother
 
-def tfp_filter(timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist):
-    """ Perform filtering using tensorflow probability """
-    state_size, _ = A.shape
-    observation_size, _ = C.shape
-    transition_noise = tfd.MultivariateNormalDiag(
-        scale_diag=jnp.ones(state_size) * transition_noise_scale
+
+def lds_jsl_to_tfp(num_timesteps, lds):
+    """Convert a JSL `LDS` object into a tfp `LinearGaussianStateSpaceModel`.
+
+    Args:
+        num_timesteps: int, number of timesteps.
+        lds: LDS object.
+    """
+    dynamics_noise_dist = tfd.MultivariateNormalFullCovariance(covariance_matrix=lds.Q)
+    emission_noise_dist = tfd.MultivariateNormalFullCovariance(covariance_matrix=lds.R)
+    initial_dist = tfd.MultivariateNormalFullCovariance(lds.mu, lds.Sigma)
+
+    tfp_lgssm = tfd.LinearGaussianStateSpaceModel(
+        num_timesteps,
+        lds.A, dynamics_noise_dist,
+        lds.C, emission_noise_dist,
+        initial_dist,
     )
-    obs_noise = tfd.MultivariateNormalDiag(
-        scale_diag=jnp.ones(observation_size) * observation_noise_scale
-    )
-    prior = tfd.MultivariateNormalDiag(mu0, tf.ones([state_size]))
 
-    LGSSM = tfd.LinearGaussianStateSpaceModel(
-        timesteps, A, transition_noise, C, obs_noise, prior
-    )
-
-    _, filtered_means, filtered_covs, _, _, _, _ = LGSSM.forward_filter(x_hist)
-    return filtered_means.numpy(), filtered_covs.numpy()
+    return tfp_lgssm
 
 
 def test_kalman_filter():
     key = random.PRNGKey(314)
-    timesteps = 15 
+    num_timesteps = 15
     delta = 1.0
 
     ### LDS Parameters ###
@@ -43,20 +43,23 @@ def test_kalman_filter():
     Q = jnp.eye(state_size) * transition_noise_scale
     R = jnp.eye(observation_size) * observation_noise_scale
 
-
     ### Prior distribution params ###
     mu0 = jnp.array([8, 10]).astype(float)
     Sigma0 = jnp.eye(state_size) * 1.0
 
     ### Sample data ###
     lds_instance = LDS(A, C, Q, R, mu0, Sigma0)
-    z_hist, x_hist = lds_instance.sample(key, timesteps)
+    z_hist, x_hist = lds_instance.sample(key, num_timesteps)
 
-    JSL_z_filt, JSL_Sigma_filt, _, _ = kalman_filter(lds_instance, x_hist)
-    tfp_z_filt, tfp_Sigma_filt = tfp_filter(
-        timesteps, A, transition_noise_scale, C, observation_noise_scale, mu0, x_hist
-    )
+    filter_output = kalman_filter(lds_instance, x_hist)
+    JSL_filtered_means, JSL_filtered_covs, *_ = filter_output
+    JSL_smoothed_means, JSL_smoothed_covs = kalman_smoother(lds_instance, *filter_output)
 
-    assert np.allclose(JSL_z_filt, tfp_z_filt, rtol=1e-2)
-    assert np.allclose(JSL_Sigma_filt, tfp_Sigma_filt, rtol=1e-2)
+    tfp_lgssm = lds_jsl_to_tfp(num_timesteps, lds_instance)
+    _, tfp_filtered_means, tfp_filtered_covs, *_ = tfp_lgssm.forward_filter(x_hist)
+    tfp_smoothed_means, tfp_smoothed_covs = tfp_lgssm.posterior_marginals(x_hist)
 
+    assert np.allclose(JSL_filtered_means, tfp_filtered_means, rtol=1e-2)
+    assert np.allclose(JSL_filtered_covs, tfp_filtered_covs, rtol=1e-2)
+    assert np.allclose(JSL_smoothed_means, tfp_smoothed_means, rtol=1e-2)
+    assert np.allclose(JSL_smoothed_covs, tfp_smoothed_covs, rtol=1e-2)
