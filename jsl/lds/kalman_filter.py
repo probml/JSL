@@ -110,6 +110,7 @@ class LDS:
         """
         Simulate a run of n_sample independent stochastic
         linear dynamical systems
+
         Parameters
         ----------
         key: jax.random.PRNGKey
@@ -396,6 +397,7 @@ def kalman_smoother(params: LDS,
     Compute the offline version of the Kalman-Filter, i.e,
     the kalman smoother for the hidden state.
     Note that we require to independently run the kalman_filter function first
+
     Parameters
     ----------
     params: LDS
@@ -422,8 +424,8 @@ def kalman_smoother(params: LDS,
     smoother_step_run = partial(smoother_step, params=params)
     elements = (mu_hist[-2::-1],
                 Sigma_hist[-2::-1, ...],
-                mu_cond_hist[1:][::-1, ...],
-                Sigma_cond_hist[1:][::-1, ...])
+                mu_cond_hist[::-1, ...],
+                Sigma_cond_hist[::-1, ...])
     initial_state = (mut_giv_T, Sigmat_giv_T, 0)
 
     _, (mu_hist_smooth, Sigma_hist_smooth) = lax.scan(smoother_step_run, initial_state, elements)
