@@ -5,13 +5,8 @@
 </p>
 
 JSL is a JAX library for Bayesian inference in state space models.
-We support discrete state spaces (HMM) and continuous state spaces.
-For HMMs, we support exact inference (forwards-backwards and Viterbi) and MLE learning (using EM or SGD).
-For continuous SSMs, we assume that the model parameters are known, and just focus on state estimation.
-We support linear and non-linear dynamics/ observations; we assume all noise is Gaussian.
-For linear dynamical systems (LDS), we support Kalman filtering and RTS smoothing.
-For nonlinear dynamical systems (NLDS), we support extended Kalman filtering (EKF) with full and diagonal covariance,
-unscented Kalman filtering (UKF) and  particle filtering (PF).
+This is an unstable work in progress, and  will eventually be replaced by [ssm-jax](https://github.com/probml/ssm-jax).
+However, as of 2022-05-16, you should continue to use JSL.
 
 # Installation
 
@@ -67,4 +62,4 @@ savefig(figdict)
 
 # Authors
   
-Gerardo Durán-Martín ([@gerdm](https://github.com/gerdm)), Aleyna Kara([@karalleyna](https://github.com/karalleyna)), Kevin Murphy ([@murphyk](https://github.com/murphyk)).  
+Gerardo Durán-Martín ([@gerdm](https://github.com/gerdm)), Aleyna Kara([@karalleyna](https://github.com/karalleyna)), Kevin Murphy ([@murphyk](https://github.com/murphyk)), Giles Harper-Donnelly ([@gileshd](https://github.com/gileshd)), Peter Chang ([@petergchang](https://github.com/petergchang)).

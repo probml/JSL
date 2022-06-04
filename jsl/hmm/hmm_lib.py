@@ -5,6 +5,7 @@
 # This version is kept for historical purposes.
 # Author: Gerardo Duran-Martin (@gerdm), Aleyna Kara (@karalleyna), Kevin Murphy (@murphyk)
 
+
 from jax import lax
 from jax.scipy.special import logit
 from functools import partial
@@ -112,11 +113,11 @@ def hmm_forwards_filtering_backwards_sampling_jax(params, obs_seq, seed):
         (t, post_state) = carry
 
         ffbs_dist_t = normalize(trans_mat * alpha[t])[0]
-        logits = logit(ffbs_dist_t[:, post_state])
+        logits = jnp.log(ffbs_dist_t[:, post_state])
         state = jax.random.categorical(key, logits=logits.flatten(), shape=(1,))
         return (t - 1, state), state
 
-    logits = logit(alpha[seq_len - 1])
+    logits = jnp.log(alpha[seq_len - 1])
     final_state = jax.random.categorical(rng_init, logits=logits.flatten(), shape=(1,))
     _, states = jax.lax.scan(draw_state, (seq_len - 2, final_state), state_keys)
     states = jnp.flip(jnp.append(jnp.array([final_state]), states), axis=0)
@@ -158,11 +159,11 @@ def hmm_sample_jax(params, seq_len, rng_key):
 
     n_states, n_obs = obs_mat.shape
 
-    initial_state = jax.random.categorical(rng_key, logits=logit(init_dist), shape=(1,))
+    initial_state = jax.random.categorical(rng_key, logits=jnp.log(init_dist), shape=(1,))
     obs_states = jnp.arange(n_obs)
 
     def draw_state(prev_state, key):
-        logits = logit(trans_mat[:, prev_state])
+        logits = jnp.log(trans_mat[prev_state])
         state = jax.random.categorical(key, logits=logits.flatten(), shape=(1,))
         return state, state
 
@@ -170,7 +171,7 @@ def hmm_sample_jax(params, seq_len, rng_key):
     keys = jax.random.split(rng_state, seq_len - 1)
 
     final_state, states = jax.lax.scan(draw_state, initial_state, keys)
-    state_seq = jnp.append(jnp.array([initial_state]), states)
+    state_seq = jnp.append(initial_state, states)
 
     def draw_obs(z, key):
         obs = jax.random.choice(key, a=obs_states, p=obs_mat[z])
@@ -479,9 +480,9 @@ def hmm_viterbi_jax(params, obs_seq, length=None):
     if length is None:
         length = seq_len
 
-    trans_log_probs = jax.nn.log_softmax(jnp.log(params.trans_mat))
-    init_log_probs = jax.nn.log_softmax(jnp.log(params.init_dist))
-    obs_mat = jnp.log(params.obs_mat)
+    trans_log_probs = jax.nn.log_softmax(logit(params.trans_mat))
+    init_log_probs = jax.nn.log_softmax(logit(params.init_dist))
+    obs_mat = logit(params.obs_mat)
     n_states, *_ = obs_mat.shape
 
     first_log_prob = init_log_probs + obs_mat[:, obs_seq[0]]
