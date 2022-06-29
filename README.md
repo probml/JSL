@@ -5,8 +5,8 @@
 </p>
 
 JSL is a JAX library for Bayesian inference in state space models.
-This is an unstable work in progress, and  will eventually be replaced by [ssm-jax](https://github.com/probml/ssm-jax).
-However, as of 2022-05-16, you should continue to use JSL.
+As of 2022-06-28, JSL is **deprecated**. You should use  [ssm-jax](https://github.com/probml/ssm-jax).
+
 
 # Installation
 
