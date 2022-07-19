@@ -15,8 +15,7 @@ from jsl.hmm.hmm_utils import hmm_plot_graphviz
 import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import distrax
-from distrax import HMM
+from jsl.hmm.hmm_lib import HMMJax, hmm_forwards_backwards_jax, hmm_sample_jax, hmm_viterbi_jax
 from jax.random import PRNGKey
 
 
@@ -94,14 +93,12 @@ def main():
 
     n_samples = 300
     init_state_dist = jnp.array([1, 1]) / 2
+    
     # hmm = HMM(A, B, init_state_dist)
+    params = HMMJax(A, B, init_state_dist)
 
-    hmm = HMM(trans_dist=distrax.Categorical(probs=A),
-              init_dist=distrax.Categorical(probs=init_state_dist),
-              obs_dist=distrax.Categorical(probs=B))
-
-    seed = 314
-    z_hist, x_hist = hmm.sample(seed=PRNGKey(seed), seq_len=n_samples)
+    seed = 0
+    z_hist, x_hist = hmm_sample_jax(params, n_samples, PRNGKey(seed))
     # z_hist, x_hist = hmm_sample_numpy(params, n_samples, 314)
 
     z_hist_str = "".join((np.array(z_hist) + 1).astype(str))[:60]
@@ -113,11 +110,11 @@ def main():
 
     # Do inference
     # alpha, _, gamma, loglik = hmm_forwards_backwards_numpy(params, x_hist, len(x_hist))
-    alpha, beta, gamma, loglik = hmm.forward_backward(x_hist)
+    alpha, beta, gamma, loglik = hmm_forwards_backwards_jax(params, x_hist, len(x_hist))
     print(f"Loglikelihood: {loglik}")
 
     # z_map = hmm_viterbi_numpy(params, x_hist)
-    z_map = hmm.viterbi(x_hist)
+    z_map = hmm_viterbi_jax(params, x_hist)
 
     dict_figures = {}
 
@@ -138,13 +135,13 @@ def main():
     plot_inference(z_map, z_hist, ax, map_estimate=True)
     ax.set_ylabel("MAP state")
     ax.set_title("Viterbi")
-    dict_figures["hmm_casino_map"] = fig
 
-    file_name = "hmm_casino_params"
+    dict_figures["hmm_casino_map"] = fig
     states, observations = ["Fair Dice", "Loaded Dice"], [str(i + 1) for i in range(B.shape[1])]
 
-    AA = hmm.trans_dist.probs
-    assert np.allclose(A, AA)
+    #AA = hmm.trans_dist.probs
+    #assert np.allclose(A, AA)
+
     dotfile = hmm_plot_graphviz(A, B, states, observations)
     dotfile_dict = {"hmm_casino_graphviz": dotfile}
 
@@ -154,6 +151,7 @@ def main():
 if __name__ == "__main__":
     from jsl.demos.plot_utils import savefig, savedotfile
     figs, dotfile = main()
+    
     savefig(figs)
     savedotfile(dotfile)
     plt.show()

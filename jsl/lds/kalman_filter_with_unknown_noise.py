@@ -29,7 +29,6 @@ class LDS:
     where 1/r is the observation precision. For details on this algorithm, see sec 4.5 of
     "Bayesian forecasting and dynamic models", West and Harrison, 1997.
     https://www2.stat.duke.edu/~mw/West&HarrisonBook/
-    https://bayanbox.ir/view/5561099385628144678/Bayesian-forecasting-and-dynamic-models-West-Harison.pdf
 
     Parameters
     ----------
