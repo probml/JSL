@@ -8,7 +8,7 @@
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-import blackjax.rmh as rmh
+from blackjax import rmh
 from jax import random
 from functools import partial
 from jax.scipy.optimize import minimize
@@ -59,12 +59,10 @@ def mcmc_logistic_posterior_sample(key, Phi, y, alpha=1.0, init_noise=1.0,
     key, key_init = random.split(key)
     w0 = random.multivariate_normal(key, jnp.zeros(ndims), jnp.eye(ndims) * init_noise)
     energy = partial(E_base, Phi=Phi, y=y, alpha=alpha)
-    initial_state = rmh.new_state(w0, energy)
+    mcmc_kernel = rmh(energy, sigma=jnp.ones(ndims) * sigma_mcmc)
+    initial_state = mcmc_kernel.init(w0)
 
-    mcmc_kernel = rmh.kernel(energy, sigma=jnp.ones(ndims) * sigma_mcmc)
-    mcmc_kernel = jax.jit(mcmc_kernel)
-
-    states = inference_loop(key_init, mcmc_kernel, initial_state, n_samples)
+    states = inference_loop(key_init, mcmc_kernel.step, initial_state, n_samples)
     chains = states.position[burnin:, :]
     return chains
 
