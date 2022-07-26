@@ -4,15 +4,14 @@
 # Dependencies:
 #     * !pip install git+https://github.com/blackjax-devs/blackjax.git
 
-
 import jax
+import numpy as np
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from blackjax import rmh
 from jax import random
 from functools import partial
 from jax.scipy.optimize import minimize
-from sklearn.datasets import make_biclusters
 from jax.scipy.stats import norm
 
 
@@ -20,8 +19,8 @@ def sigmoid(x): return jnp.exp(x) / (1 + jnp.exp(x))
 def log_sigmoid(z): return z - jnp.log1p(jnp.exp(z))
 
 
-def plot_posterior_predictive(ax, X, Xspace, Zspace, title, colors, cmap="RdBu_r"):
-    ax.contourf(*Xspace, Zspace, cmap=cmap, alpha=0.7, levels=20)
+def plot_posterior_predictive(ax, X, Xspace, Zspace, title, colors, cmap="viridis"):
+    ax.contourf(*Xspace, Zspace, cmap=cmap, levels=20)
     ax.scatter(*X.T, c=colors, edgecolors="gray", s=80)
     ax.set_title(title)
     ax.axis("off")
@@ -49,7 +48,7 @@ def E_base(w, Phi, y, alpha):
 
 
 def mcmc_logistic_posterior_sample(key, Phi, y, alpha=1.0, init_noise=1.0,
-                                   n_samples=5_000, burnin=300, sigma_mcmc=0.8):
+                                   n_samples=5_000, burnin=500, sigma_mcmc=0.8):
     """
     Sample from the posterior distribution of the weights
     of a 2d binary logistic regression model p(y=1|x,w) = sigmoid(w'x),
@@ -66,6 +65,7 @@ def mcmc_logistic_posterior_sample(key, Phi, y, alpha=1.0, init_noise=1.0,
     chains = states.position[burnin:, :]
     return chains
 
+
 def laplace_posterior(key, Phi, y, alpha=1.0, init_noise=1.0):
     N, M = Phi.shape
     w0 = random.multivariate_normal(key, jnp.zeros(M), jnp.eye(M) * init_noise)
@@ -76,15 +76,25 @@ def laplace_posterior(key, Phi, y, alpha=1.0, init_noise=1.0):
     return w_laplace, SN
 
 
+def make_dataset(seed=135):
+    np.random.seed(seed)
+    N = 30
+    mu1 = np.hstack((np.ones((N, 1)), 5 * np.ones((N, 1))))
+    mu2 = np.hstack((-5 * np.ones((N, 1)), np.ones((N, 1))))
+    class1_std = 1
+    class2_std = 1.1
+    X_1 = np.add(class1_std * np.random.randn(N, 2), mu1)
+    X_2 = np.add(2 * class2_std * np.random.randn(N, 2), mu2)
+    X = np.vstack((X_1, X_2))
+    y = np.vstack((np.ones((N, 1)), np.zeros((N, 1))))
+    return X, y.ravel()
+
+
 def main():
+    key = random.PRNGKey(314)
     ## Data generating process
-    n_datapoints = 50
-    m = 2
-    X, rows, _ = make_biclusters((n_datapoints, m), 2,
-                                    noise=0.6, random_state=3141,
-                                    minval=-4, maxval=4)
-    # whether datapoints belong to class 1
-    y = rows[0] * 1.0
+    X, y = make_dataset()
+    n_datapoints = len(y)
 
     Phi = jnp.c_[jnp.ones(n_datapoints)[:, None], X]
     N, M = Phi.shape
@@ -99,7 +109,6 @@ def main():
     _, nx, ny = Xspace.shape
     Phispace = jnp.concatenate([jnp.ones((1, nx, ny)), Xspace])
 
-    key = random.PRNGKey(314)
 
     ## Laplace
     alpha = 2.0
