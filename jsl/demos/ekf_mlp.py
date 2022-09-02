@@ -9,20 +9,15 @@
 #       https://juniperpublishers.com/raej/RAEJ.MS.ID.555568.php
 
 import jax
-import jax.numpy as jnp
-from jax.random import PRNGKey, permutation, split, normal, multivariate_normal
-from jax.flatten_util import ravel_pytree
-
-import flax.linen as nn
-
 import numpy as np
+import jax.numpy as jnp
+import flax.linen as nn
 import matplotlib.pyplot as plt
+import jsl.nlds.extended_kalman_filter as ekf_lib
+from jax.flatten_util import ravel_pytree
 from functools import partial
 from typing import Sequence
-
 from jsl.nlds.base import NLDS
-import jsl.nlds.extended_kalman_filter as ekf_lib
-
 
 class MLP(nn.Module):
     features: Sequence[int]
@@ -60,20 +55,20 @@ def apply(flat_params, x, model, unflatten_fn):
 
 
 def sample_observations(key, f, n_obs, xmin, xmax, x_noise=0.1, y_noise=3.0):
-    key_x, key_y, key_shuffle = split(key, 3)
-    x_noise = normal(key_x, (n_obs,)) * x_noise
-    y_noise = normal(key_y, (n_obs,)) * y_noise
+    key_x, key_y, key_shuffle = jax.random.split(key, 3)
+    x_noise = jax.random.normal(key_x, (n_obs,)) * x_noise
+    y_noise = jax.random.normal(key_y, (n_obs,)) * y_noise
     x = jnp.linspace(xmin, xmax, n_obs) + x_noise
     y = f(x) + y_noise
     X = np.c_[x, y]
 
-    shuffled_ixs = permutation(key_shuffle, jnp.arange(n_obs))
-    x, y = jnp.array(X[shuffled_ixs, :].T)
-    return x, y
+    shuffled_ixs = jax.random.permutation(key_shuffle, jnp.arange(n_obs))
+    X, y = jnp.array(X[shuffled_ixs, :].T)
+    return X, y
 
 
 def plot_mlp_prediction(key, xobs, yobs, xtest, fw, w, Sw, ax, n_samples=100):
-    W_samples = multivariate_normal(key, w, Sw, (n_samples,))
+    W_samples = jax.random.multivariate_normal(key, w, Sw, (n_samples,))
     sample_yhat = fw(W_samples, xtest[:, None])
     for sample in sample_yhat:  # sample curves
         ax.plot(xtest, sample, c="tab:gray", alpha=0.07)
@@ -121,8 +116,8 @@ def fz(W):
 
 
 def main():
-    key = PRNGKey(314)
-    key_sample_obs, key_weights, key_init = split(key, 3)
+    key = jax.random.PRNGKey(314)
+    key_sample_obs, key_weights, key_init = jax.random.split(key, 3)
 
     all_figures = {}
 
@@ -154,7 +149,7 @@ def main():
 
     # *** MLP Training with EKF ***
     n_params = W0.size
-    W0 = normal(key_weights, (n_params,)) * 1  # initial random guess
+    W0 = jax.random.normal(key_weights, (n_params,)) * 1  # initial random guess
     Q = jnp.eye(n_params) * 1e-4  # parameters do not change
     R = jnp.eye(1) * sigma_y ** 2  # observation noise is fixed
     Vinit = jnp.eye(n_params) * 100  # vague prior
