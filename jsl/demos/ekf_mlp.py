@@ -9,7 +9,6 @@
 #       https://juniperpublishers.com/raej/RAEJ.MS.ID.555568.php
 
 import jax
-import numpy as np
 import jax.numpy as jnp
 import flax.linen as nn
 import matplotlib.pyplot as plt
@@ -60,7 +59,7 @@ def sample_observations(key, f, n_obs, xmin, xmax, x_noise=0.1, y_noise=3.0):
     y_noise = jax.random.normal(key_y, (n_obs,)) * y_noise
     x = jnp.linspace(xmin, xmax, n_obs) + x_noise
     y = f(x) + y_noise
-    X = np.c_[x, y]
+    X = jnp.c_[x, y]
 
     shuffled_ixs = jax.random.permutation(key_shuffle, jnp.arange(n_obs))
     X, y = jnp.array(X[shuffled_ixs, :].T)
