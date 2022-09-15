@@ -1,5 +1,5 @@
 import chex
-from jax import jacrev, lax
+import jax
 import jax.numpy as jnp
 from typing import Dict, List, Tuple, Callable
 from functools import partial
@@ -100,8 +100,8 @@ def filter(params: NLDS,
     fz, fx = params.fz, params.fx
     Q, R = params.Qz, params.Rx
 
-    Dfz = jacrev(fz)
-    Dfx = jacrev(fx)
+    Dfz = jax.jacrev(fz)
+    Dfx = jax.jacrev(fx)
 
     Vt = Q(init_state) if Vinit is None else Vinit
 
@@ -114,7 +114,7 @@ def filter(params: NLDS,
 
     filter_step_pass = partial(filter_step, params=params, Dfx=Dfx, Dfz=Dfz,
                                eps=eps, return_params=return_params)
-    (mu_t, Vt, _), hist_elements = lax.scan(filter_step_pass, state, xs)
+    (mu_t, Vt, _), hist_elements = jax.lax.scan(filter_step_pass, state, xs)
 
     if return_history:
         return (mu_t, Vt), hist_elements
