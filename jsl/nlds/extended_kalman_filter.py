@@ -95,10 +95,8 @@ def filter(params: NLDS,
     * array(nsamples, state_size, state_size)
         History of filtered covariance terms
     """
-    state_size, *_ = init_state.shape
-
     fz, fx = params.fz, params.fx
-    Q, R = params.Qz, params.Rx
+    Q = params.Qz
 
     Dfz = jax.jacrev(fz)
     Dfx = jax.jacrev(fx)
