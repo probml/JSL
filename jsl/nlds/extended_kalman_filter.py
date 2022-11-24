@@ -58,7 +58,7 @@ def filter_step(state: Tuple[chex.Array, chex.Array, int],
     mu_t = mu_t_cond + Kt @ (obs - obs_hat)
     Vt = (I - Kt @ Ht) @ Vt_cond @ (I - Kt @ Ht).T + Kt @ Rt @ Kt.T
 
-    carry = {"mean": mu_t, "cov": Vt}
+    carry = {"mean": mu_t, "cov": Vt, "obs_hat": obs_hat}
     carry = {key: val for key, val in carry.items() if key in return_params}
     return (mu_t, Vt, t + 1), carry
 
